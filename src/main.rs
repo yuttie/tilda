@@ -231,6 +231,22 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                 let cat = Categorical::new(weights);
                 z[d][i] = cat.ind_sample(&mut rand::thread_rng());
             }
+            // Sample theta_d
+            let mut alpha_d: Vec<f64> = Vec::new();
+            for k in 0..num_topics {
+                alpha_d.push(ndk[d][k] as f64 + alpha[k]);
+            }
+            let dir = Dirichlet::new(alpha_d);
+            theta[d] = dir.ind_sample(&mut rand::thread_rng());
+        }
+        for k in 0..num_topics {
+            // Sample theta_d
+            let mut beta_k: Vec<f64> = Vec::new();
+            for v in 0..vocab_size {
+                beta_k.push(nkv[k][v] as f64 + beta[v]);
+            }
+            let dir = Dirichlet::new(beta_k);
+            theta[k] = dir.ind_sample(&mut rand::thread_rng());
         }
     }
 }
