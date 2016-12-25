@@ -73,10 +73,19 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
     println!("M = {}", &dataset.len());
     println!("V = {}", vocab_size);
 
+    let mut w: Vec<Vec<usize>> = Vec::new();
     let mut z: Vec<Vec<usize>> = Vec::new();
     let mut theta: Vec<Vec<f64>> = Vec::new();
     let mut ndk: Vec<Vec<usize>> = Vec::new();
     for bag in &dataset {
+        // w
+        let mut w_d = Vec::new();
+        for (&index, &count) in bag {
+            for _ in 0..count {
+                w_d.push(index);
+            }
+        }
+        w.push(w_d);
         // z
         let mut z_d = Vec::new();
         for &count in bag.values() {
