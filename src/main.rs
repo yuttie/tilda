@@ -8,6 +8,7 @@ use std::env;
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead};
 
+use rand::{random, Closed01};
 use rand::distributions::{IndependentSample, Range};
 
 
@@ -46,7 +47,7 @@ fn load_text_vocabulary<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
     Ok(vocab)
 }
 
-fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
+fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, num_samples: usize) {
     // Initialization
     let mut rng = rand::thread_rng();
     let topics = Range::new(0, num_topics);
@@ -143,6 +144,38 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
     }
     println!("phi = {:?}", phi);
     println!("nkv = {:?}", nkv);
+
+    // Sampling
+    for s in 0..num_samples {
+        for (d, w_d) in w.iter().enumerate() {
+            for (i, &w_di) in w_d.iter().enumerate() {
+                let v = w_di;
+                // Compute the proportion
+                let mut sum: f64 = 0.0;
+                let mut prop: Vec<f64> = Vec::new();
+                for k in 0..num_topics {
+                    let weight = theta[d][k] * phi[k][v];
+                    sum += weight;
+                    prop.push(weight);
+                }
+                for k in 0..num_topics {
+                    prop[k] /= sum;
+                }
+                // Sample z_di
+                let Closed01(x) = random::<Closed01<f64>>();
+                let mut sum = 0.0;
+                let mut sample = num_topics - 1;
+                for k in 0..num_topics {
+                    sum += prop[k];
+                    if x < sum {
+                        sample = k;
+                        break;
+                    }
+                }
+                z[d][i] = sample;
+            }
+        }
+    }
 }
 
 fn main() {
@@ -158,5 +191,5 @@ fn main() {
     println!("{:?}", dataset);
     println!("{:?}", vocab);
 
-    lda(3, dataset, vec![1.0, 1.0, 1.0], vec![1.0, 1.0, 1.0]);
+    lda(3, dataset, vec![1.0, 1.0, 1.0], vec![1.0, 1.0, 1.0], 100);
 }
