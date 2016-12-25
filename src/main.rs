@@ -248,5 +248,5 @@ fn main() {
     println!("{:?}", dataset);
     println!("{:?}", vocab);
 
-    lda(3, dataset, vec![1.0, 1.0, 1.0], vec![1.0, 1.0, 1.0], 100);
+    lda(3, dataset, vec![1.0, 1.0, 1.0], vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], 100);
 }
