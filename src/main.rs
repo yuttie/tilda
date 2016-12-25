@@ -220,6 +220,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
     println!("nkv = {:?}", nkv);
 
     // Sampling
+    let mut rng = rand::thread_rng();
     for s in 0..num_samples {
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
@@ -231,7 +232,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                 }
                 let cat = Categorical::new(weights);
                 let old_z_di = z[d][i];
-                let new_z_di = cat.ind_sample(&mut rand::thread_rng());
+                let new_z_di = cat.ind_sample(&mut rng);
                 z[d][i] = new_z_di;
                 // Update ndk and nkv
                 ndk[d][old_z_di] -= 1;
@@ -245,7 +246,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                 alpha_d.push(ndk[d][k] as f64 + alpha[k]);
             }
             let dir = Dirichlet::new(alpha_d);
-            theta[d] = dir.ind_sample(&mut rand::thread_rng());
+            theta[d] = dir.ind_sample(&mut rng);
         }
         for k in 0..num_topics {
             // Sample phi_k
@@ -254,7 +255,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                 beta_k.push(nkv[k][v] as f64 + beta[v]);
             }
             let dir = Dirichlet::new(beta_k);
-            phi[k] = dir.ind_sample(&mut rand::thread_rng());
+            phi[k] = dir.ind_sample(&mut rng);
         }
     }
 }
