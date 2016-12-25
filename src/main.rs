@@ -8,8 +8,8 @@ use std::env;
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead};
 
-use rand::{random, Closed01};
-use rand::distributions::{IndependentSample, Range};
+use rand::{random, Closed01, Rng};
+use rand::distributions::{IndependentSample, Range, Sample};
 
 
 type Bag = HashMap<usize, usize>;
@@ -45,6 +45,43 @@ fn load_text_vocabulary<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
         vocab.push(line);
     }
     Ok(vocab)
+}
+
+#[derive(Clone)]
+struct Categorical {
+    prop: Vec<f64>,
+}
+
+impl Categorical {
+    fn new(weights: Vec<f64>) -> Categorical {
+        let sum: f64 = weights.iter().sum();
+        let prop: Vec<f64> = weights.iter().map(|w| w / sum).collect();
+        Categorical {
+            prop: prop,
+        }
+    }
+}
+
+impl Sample<usize> for Categorical {
+    fn sample<R: Rng>(&mut self, rng: &mut R) -> usize {
+        self.ind_sample(rng)
+    }
+}
+
+impl IndependentSample<usize> for Categorical {
+    fn ind_sample<R: Rng>(&self, rng: &mut R) -> usize {
+        let Closed01(x) = random::<Closed01<f64>>();
+
+        let mut sum = 0.0;
+        let mut ret = self.prop.len() - 1;
+        for (k, &p) in self.prop.iter().enumerate() {
+            sum += p;
+            if x <= sum {
+                ret = k;
+            }
+        }
+        ret
+    }
 }
 
 fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, num_samples: usize) {
@@ -150,29 +187,13 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
-                // Compute the proportion
-                let mut sum: f64 = 0.0;
-                let mut prop: Vec<f64> = Vec::new();
-                for k in 0..num_topics {
-                    let weight = theta[d][k] * phi[k][v];
-                    sum += weight;
-                    prop.push(weight);
-                }
-                for k in 0..num_topics {
-                    prop[k] /= sum;
-                }
                 // Sample z_di
-                let Closed01(x) = random::<Closed01<f64>>();
-                let mut sum = 0.0;
-                let mut sample = num_topics - 1;
+                let mut weights: Vec<f64> = Vec::new();
                 for k in 0..num_topics {
-                    sum += prop[k];
-                    if x < sum {
-                        sample = k;
-                        break;
-                    }
+                    weights.push(theta[d][k] * phi[k][v]);
                 }
-                z[d][i] = sample;
+                let cat = Categorical::new(weights);
+                z[d][i] = cat.ind_sample(&mut rand::thread_rng());
             }
         }
     }
