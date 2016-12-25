@@ -78,6 +78,7 @@ impl IndependentSample<usize> for Categorical {
             sum += p;
             if x <= sum {
                 ret = k;
+                break;
             }
         }
         ret
