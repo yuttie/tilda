@@ -9,7 +9,7 @@ use std::path::{Path};
 use std::io::{self, BufReader, BufRead};
 
 use rand::{random, Closed01, Rng};
-use rand::distributions::{IndependentSample, Range, Sample};
+use rand::distributions::{IndependentSample, Range, Sample, Gamma};
 
 
 type Bag = HashMap<usize, usize>;
@@ -81,6 +81,42 @@ impl IndependentSample<usize> for Categorical {
             }
         }
         ret
+    }
+}
+
+#[derive(Clone)]
+struct Dirichlet {
+    alpha: Vec<f64>,
+}
+
+impl Dirichlet {
+    fn new(alpha: Vec<f64>) -> Dirichlet {
+        Dirichlet {
+            alpha: alpha,
+        }
+    }
+}
+
+impl Sample<Vec<f64>> for Dirichlet {
+    fn sample<R: Rng>(&mut self, rng: &mut R) -> Vec<f64> {
+        self.ind_sample(rng)
+    }
+}
+
+impl IndependentSample<Vec<f64>> for Dirichlet {
+    fn ind_sample<R: Rng>(&self, rng: &mut R) -> Vec<f64> {
+        let mut sum = 0.0;
+        let mut xs = Vec::new();
+        for &a in &self.alpha {
+            let gamma = Gamma::new(a, 1.0);
+            let y = gamma.ind_sample(rng);
+            xs.push(y);
+            sum += y;
+        }
+        for x in xs.iter_mut() {
+            *x /= sum;
+        }
+        xs
     }
 }
 
