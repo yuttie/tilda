@@ -229,7 +229,14 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                     weights.push(theta[d][k] * phi[k][v]);
                 }
                 let cat = Categorical::new(weights);
-                z[d][i] = cat.ind_sample(&mut rand::thread_rng());
+                let old_z_di = z[d][i];
+                let new_z_di = cat.ind_sample(&mut rand::thread_rng());
+                z[d][i] = new_z_di;
+                // Update ndk and nkv
+                ndk[d][old_z_di] -= 1;
+                ndk[d][new_z_di] += 1;
+                nkv[old_z_di][v] -= 1;
+                nkv[new_z_di][v] += 1;
             }
             // Sample theta_d
             let mut alpha_d: Vec<f64> = Vec::new();
