@@ -88,14 +88,14 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
         z.push(z_d);
         // theta
         let mut theta_d = Vec::with_capacity(num_topics);
-        for _ in 0..num_topics {
+        for _k in 0..num_topics {
             theta_d.push(1.0 / num_topics as f64);
         }
         theta.push(theta_d);
         // ndk
         let mut ndk_d = Vec::with_capacity(num_topics);
         ndk_d.push(n_d);
-        for _ in 1..num_topics {
+        for _k in 1..num_topics {
             ndk_d.push(0);
         }
         ndk.push(ndk_d);
@@ -107,16 +107,16 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
     let mut phi: Vec<Vec<f64>> = Vec::new();
     let mut nkv: Vec<Vec<usize>> = Vec::new();
     // phi
-    for k in 0..num_topics {
+    for _k in 0..num_topics {
         let mut phi_k = Vec::new();
-        for _ in 0..vocab_size {
+        for _v in 0..vocab_size {
             phi_k.push(1.0 / vocab_size as f64);
         }
         phi.push(phi_k);
     }
     // nkv
     let mut nkv_0 = Vec::new();
-    for _ in 0..vocab_size {
+    for _v in 0..vocab_size {
         nkv_0.push(0);
     }
     for bag in &dataset {
@@ -125,9 +125,9 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>) {
         }
     }
     nkv.push(nkv_0);
-    for k in 1..num_topics {
+    for _k in 1..num_topics {
         let mut nkv_k = Vec::new();
-        for _ in 0..vocab_size {
+        for _v in 0..vocab_size {
             nkv_k.push(0);
         }
         nkv.push(nkv_k);
