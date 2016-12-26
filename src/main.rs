@@ -257,6 +257,14 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
             let dir = Dirichlet::new(beta_k);
             phi[k] = dir.ind_sample(&mut rng);
         }
+        // Evaluate the log-likelihood value for the current parameters
+        let mut log_likelihood = 0.0;
+        for k in 0..num_topics {
+            for v in 0..vocab_size {
+                log_likelihood += nkv[k][v] as f64 * f64::ln(phi[k][v]);
+            }
+        }
+        println!("log_likelihood = {}", log_likelihood);
     }
 }
 
