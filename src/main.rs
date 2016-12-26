@@ -7,6 +7,7 @@ use std::fs::{File};
 use std::env;
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead};
+use std::iter;
 
 use rand::{random, Closed01, Rng};
 use rand::distributions::{IndependentSample, Range, Sample, Gamma};
@@ -281,5 +282,9 @@ fn main() {
     println!("{:?}", dataset);
     println!("{:?}", vocab);
 
-    lda(3, dataset, vec![1.0, 1.0, 1.0], vec![1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], 100);
+    let num_topics = 3;
+    let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
+    let beta: Vec<f64> = iter::repeat(1.0).take(vocab.unwrap().len()).collect();
+
+    lda(num_topics, dataset, alpha, beta, 100000);
 }
