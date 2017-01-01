@@ -276,7 +276,9 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     }
 }
 
-fn make_dataset(num_docs: usize, vocab_size: usize, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+fn make_dataset(num_docs: usize, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+    let num_topics: usize = alpha.len();
+    let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
     // phi
     let dir_beta = Dirichlet::new(beta);
