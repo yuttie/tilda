@@ -10,7 +10,7 @@ use std::io::{self, BufReader, BufRead};
 use std::iter;
 
 use rand::{random, Closed01, Rng};
-use rand::distributions::{IndependentSample, Range, Sample, Gamma};
+use rand::distributions::{IndependentSample, Range, Sample, Gamma, LogNormal};
 
 
 type Bag = HashMap<usize, usize>;
@@ -288,6 +288,49 @@ fn lda(dataset: Vec<Bag>, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>, bu
             println!("");
         }
     }
+}
+
+fn make_dataset(num_docs: usize, vocab_size: usize, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+    let mut rng = rand::thread_rng();
+    // phi
+    let dir_beta = Dirichlet::new(beta);
+    let mut phi: Vec<Vec<f64>> = Vec::with_capacity(num_topics);
+    for k in 0..num_topics {
+        // Sample phi_k
+        phi.push(dir_beta.ind_sample(&mut rng));
+    }
+    // theta, nd, z, w
+    let dir_alpha = Dirichlet::new(alpha);
+    let lognorm = LogNormal::new(100.0, 30.0);
+    let mut theta: Vec<Vec<f64>> = Vec::with_capacity(num_docs);
+    let mut nd: Vec<usize> = Vec::with_capacity(num_docs);
+    let mut z: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    let mut w: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    for d in 0..num_docs {
+        theta.push(dir_alpha.ind_sample(&mut rng));
+        nd.push(f64::floor(lognorm.ind_sample(&mut rng)) as usize);
+        let cat_theta = Categorical::new(theta[d].clone());
+        let mut z_d = Vec::with_capacity(nd[d]);
+        let mut w_d = Vec::with_capacity(nd[d]);
+        for i in 0..nd[d] {
+            z_d.push(cat_theta.ind_sample(&mut rng));
+            let cat_phi = Categorical::new(phi[z_d[i]].clone());
+            w_d.push(cat_phi.ind_sample(&mut rng));
+        }
+        z.push(z_d);
+        w.push(w_d);
+    }
+    // Make bags
+    let mut bags: Vec<Bag> = Vec::new();
+    for w_d in w {
+        let mut bag: Bag = Bag::new();
+        for v in w_d {
+            let counter = bag.entry(v).or_insert(0);
+            *counter += 1;
+        }
+        bags.push(bag);
+    }
+    bags
 }
 
 fn main() {
