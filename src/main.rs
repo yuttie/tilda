@@ -122,7 +122,7 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
-fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, num_samples: usize) {
+fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
     // Initialization
     let mut rng = rand::thread_rng();
     let topics = Range::new(0, num_topics);
@@ -151,6 +151,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
 
     let mut w: Vec<Vec<usize>> = Vec::new();
     let mut z: Vec<Vec<usize>> = Vec::new();
+    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::new();
     let mut theta: Vec<Vec<f64>> = Vec::new();
     let mut ndk: Vec<Vec<usize>> = Vec::new();
     for bag in &dataset {
@@ -164,13 +165,17 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
         w.push(w_d);
         // z
         let mut z_d = Vec::new();
+        let mut z_samples_d = Vec::new();
         for &count in bag.values() {
             for _ in 0..count {
                 z_d.push(0);
+                let zeros: Vec<usize> = iter::repeat(0).take(num_topics).collect();
+                z_samples_d.push(zeros);
             }
         }
         let n_d = z_d.len();
         z.push(z_d);
+        z_samples.push(z_samples_d);
         // theta
         let mut theta_d = Vec::with_capacity(num_topics);
         for _k in 0..num_topics {
@@ -222,7 +227,7 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
 
     // Sampling
     let mut rng = rand::thread_rng();
-    for s in 0..num_samples {
+    for s in 0..(burn_in + num_samples) {
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -235,6 +240,9 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
                 let old_z_di = z[d][i];
                 let new_z_di = cat.ind_sample(&mut rng);
                 z[d][i] = new_z_di;
+                if s >= burn_in {
+                    z_samples[d][i][new_z_di] += 1;
+                }
                 // Update ndk and nkv
                 ndk[d][old_z_di] -= 1;
                 ndk[d][new_z_di] += 1;
@@ -267,6 +275,18 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, nu
         }
         println!("log_likelihood = {}", log_likelihood);
     }
+    for (d, z_samples_d) in z_samples.iter().enumerate() {
+        for (i, samples) in z_samples_d.iter().enumerate() {
+            let mut sum = 0.0;
+            for k in 0..num_topics {
+                sum += samples[k] as f64;
+            }
+            println!("z[{}][{}] = ", d, i);
+            for k in 0..num_topics {
+                println!("{:.2}%", samples[k] as f64 / sum);
+            }
+        }
+    }
 }
 
 fn main() {
@@ -286,5 +306,5 @@ fn main() {
     let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
     let beta: Vec<f64> = iter::repeat(1.0).take(vocab.unwrap().len()).collect();
 
-    lda(num_topics, dataset, alpha, beta, 100000);
+    lda(num_topics, dataset, alpha, beta, 1000, 4000);
 }
