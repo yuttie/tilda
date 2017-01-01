@@ -141,6 +141,11 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     let mut theta: Vec<Vec<f64>> = Vec::new();
     let mut ndk: Vec<Vec<usize>> = Vec::new();
     for bag in &dataset {
+        // n_d
+        let mut n_d = 0;
+        for &count in bag.values() {
+            n_d += count;
+        }
         // w
         let mut w_d = Vec::new();
         for (&index, &count) in bag {
@@ -159,7 +164,6 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
                 z_samples_d.push(zeros);
             }
         }
-        let n_d = z_d.len();
         z.push(z_d);
         z_samples.push(z_samples_d);
         // theta
