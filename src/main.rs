@@ -307,5 +307,5 @@ fn main() {
     let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
     let beta: Vec<f64> = iter::repeat(1.0).take(vocab.unwrap().len()).collect();
 
-    lda(num_topics, dataset, alpha, beta, 1000, 4000);
+    lda(num_topics, dataset, alpha, beta, 1000, 10000);
 }
