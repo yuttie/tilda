@@ -127,26 +127,10 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
-fn lda(dataset: Vec<Bag>, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
+fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
     // Initialization
-    let vocab_size: usize = {
-        let mut have_some = false;
-        let mut max_index = 0;
-        for bag in &dataset {
-            for &index in bag.keys() {
-                have_some = true;
-                if index > max_index {
-                    max_index = index;
-                }
-            }
-        }
-        if have_some {
-            max_index + 1
-        }
-        else {
-            0
-        }
-    };
+    let num_topics: usize = alpha.len();
+    let vocab_size: usize = beta.len();
     println!("K = {}", num_topics);
     println!("M = {}", &dataset.len());
     println!("V = {}", vocab_size);
@@ -352,5 +336,5 @@ fn main() {
     let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
     let beta: Vec<f64> = iter::repeat(1.0).take(vocab_size).collect();
 
-    lda(dataset, num_topics, alpha, beta, 1000, 10000);
+    lda(dataset, alpha, beta, 1000, 10000);
 }
