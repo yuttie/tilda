@@ -15,9 +15,10 @@ use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSampl
 
 type Bag = HashMap<usize, usize>;
 
-fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<usize>, Vec<Bag>)> {
+fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<usize>, Vec<Bag>, usize)> {
     let mut bags = Vec::new();
     let mut labels = Vec::new();
+    let mut vocab_size = 0;
     let file = try!(File::open(path));
     let file = BufReader::new(file);
     for line in file.lines() {
@@ -29,12 +30,15 @@ fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<usize>, Vec<Bag>)> {
             let mut iter = elm.split(':');
             let index = iter.next().unwrap().parse::<usize>().unwrap();
             let value = iter.next().unwrap().parse::<usize>().unwrap();
-            bag.insert(index - 1, value);
+            bag.insert(index - 1, value);    // We assume one-based indexing
+            if vocab_size < index {
+                vocab_size = index;
+            }
         }
         labels.push(label);
         bags.push(bag);
     }
-    Ok((labels, bags))
+    Ok((labels, bags, vocab_size))
 }
 
 fn load_text_vocabulary<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
@@ -333,7 +337,7 @@ fn make_dataset(num_docs: usize, vocab_size: usize, num_topics: usize, alpha: Ve
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let (labels, dataset) = load_bags(&args[1]).unwrap();
+    let (labels, dataset, vocab_size) = load_bags(&args[1]).unwrap();
     let vocab: Option<Vec<String>> = if args.len() < 3 {
         None
     }
@@ -346,7 +350,7 @@ fn main() {
 
     let num_topics = 3;
     let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
-    let beta: Vec<f64> = iter::repeat(1.0).take(vocab.unwrap().len()).collect();
+    let beta: Vec<f64> = iter::repeat(1.0).take(vocab_size).collect();
 
     lda(dataset, num_topics, alpha, beta, 1000, 10000);
 }
