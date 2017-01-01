@@ -281,10 +281,11 @@ fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, bu
             for k in 0..num_topics {
                 sum += samples[k] as f64;
             }
-            println!("z[{}][{}] = ", d, i);
+            print!("z[{:3}][{:3}] = ", d, i);
             for k in 0..num_topics {
-                println!("{:.2}%", samples[k] as f64 / sum);
+                print!("{:3}:{:.2} ", k, samples[k] as f64 / sum);
             }
+            println!("");
         }
     }
 }
