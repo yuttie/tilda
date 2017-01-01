@@ -276,7 +276,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     }
 }
 
-fn make_dataset(num_docs: usize, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
@@ -289,7 +289,7 @@ fn make_dataset(num_docs: usize, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
     }
     // theta, nd, z, w
     let dir_alpha = Dirichlet::new(alpha);
-    let lognorm = LogNormal::new(100.0, 30.0);
+    let lognorm = LogNormal::new(mean_nd, std_dev_nd);
     let mut theta: Vec<Vec<f64>> = Vec::with_capacity(num_docs);
     let mut nd: Vec<usize> = Vec::with_capacity(num_docs);
     let mut z: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
