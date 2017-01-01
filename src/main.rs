@@ -122,7 +122,7 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
-fn lda(num_topics: usize, dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
+fn lda(dataset: Vec<Bag>, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
     // Initialization
     let mut rng = rand::thread_rng();
     let topics = Range::new(0, num_topics);
@@ -307,5 +307,5 @@ fn main() {
     let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
     let beta: Vec<f64> = iter::repeat(1.0).take(vocab.unwrap().len()).collect();
 
-    lda(num_topics, dataset, alpha, beta, 1000, 10000);
+    lda(dataset, num_topics, alpha, beta, 1000, 10000);
 }
