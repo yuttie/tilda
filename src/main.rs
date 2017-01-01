@@ -10,7 +10,7 @@ use std::io::{self, BufReader, BufRead};
 use std::iter;
 
 use rand::{random, Closed01, Rng};
-use rand::distributions::{IndependentSample, Range, Sample, Gamma, LogNormal};
+use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal};
 
 
 type Bag = HashMap<usize, usize>;
@@ -124,9 +124,6 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 
 fn lda(dataset: Vec<Bag>, num_topics: usize, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
     // Initialization
-    let mut rng = rand::thread_rng();
-    let topics = Range::new(0, num_topics);
-
     let vocab_size: usize = {
         let mut have_some = false;
         let mut max_index = 0;
