@@ -9,8 +9,8 @@ use std::path::{Path};
 use std::io::{self, BufReader, BufRead};
 use std::iter;
 
-use rand::{random, Closed01, Rng};
-use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal};
+use rand::{Closed01, Rng};
+use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample};
 
 
 type Bag = HashMap<usize, usize>;
@@ -71,7 +71,8 @@ impl Sample<usize> for Categorical {
 
 impl IndependentSample<usize> for Categorical {
     fn ind_sample<R: Rng>(&self, rng: &mut R) -> usize {
-        let Closed01(x) = random::<Closed01<f64>>();
+        let closed01 = RandSample::<Closed01<f64>>::new();
+        let Closed01(x) = closed01.ind_sample(rng);
 
         let mut sum = 0.0;
         let mut ret = self.prop.len() - 1;
