@@ -378,24 +378,12 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
         // Infer phi and theta
         for d in 0..num_docs {
             for k in 0..num_topics {
-                theta[d][k] = {
-                    let mut sum = 0.0;
-                    for k in 0..num_topics {
-                        sum += ndk[d][k] as f64 + alpha[k];
-                    }
-                    (ndk[d][k] as f64 + alpha[k]) / sum
-                };
+                theta[d][k] = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
             }
         }
         for k in 0..num_topics {
             for v in 0..vocab_size {
-                phi[k][v] = {
-                    let mut sum = 0.0;
-                    for v in 0..vocab_size {
-                        sum += nkv[k][v] as f64 + beta[v];
-                    }
-                    (nkv[k][v] as f64 + beta[v]) / sum
-                };
+                phi[k][v] = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
             }
         }
         // Evaluate the log-likelihood value for the current parameters
