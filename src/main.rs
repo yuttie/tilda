@@ -135,11 +135,11 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     println!("M = {}", &dataset.len());
     println!("V = {}", vocab_size);
 
-    let mut w: Vec<Vec<usize>> = Vec::new();
-    let mut z: Vec<Vec<usize>> = Vec::new();
-    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::new();
-    let mut theta: Vec<Vec<f64>> = Vec::new();
-    let mut ndk: Vec<Vec<usize>> = Vec::new();
+    let mut w: Vec<Vec<usize>> = Vec::with_capacity(dataset.len());
+    let mut z: Vec<Vec<usize>> = Vec::with_capacity(dataset.len());
+    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(dataset.len());
+    let mut theta: Vec<Vec<f64>> = Vec::with_capacity(dataset.len());
+    let mut ndk: Vec<Vec<usize>> = Vec::with_capacity(dataset.len());
     for bag in &dataset {
         // n_d
         let mut n_d = 0;
@@ -147,7 +147,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
             n_d += count;
         }
         // w
-        let mut w_d = Vec::new();
+        let mut w_d = Vec::with_capacity(n_d);
         for (&index, &count) in bag {
             for _ in 0..count {
                 w_d.push(index);
@@ -155,8 +155,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
         }
         w.push(w_d);
         // z
-        let mut z_d = Vec::new();
-        let mut z_samples_d = Vec::new();
+        let mut z_d = Vec::with_capacity(n_d);
+        let mut z_samples_d = Vec::with_capacity(n_d);
         for &count in bag.values() {
             for _ in 0..count {
                 z_d.push(0);
@@ -184,18 +184,18 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     println!("theta = {:?}", theta);
     println!("ndk = {:?}", ndk);
 
-    let mut phi: Vec<Vec<f64>> = Vec::new();
-    let mut nkv: Vec<Vec<usize>> = Vec::new();
+    let mut phi: Vec<Vec<f64>> = Vec::with_capacity(num_topics);
+    let mut nkv: Vec<Vec<usize>> = Vec::with_capacity(num_topics);
     // phi
     for _k in 0..num_topics {
-        let mut phi_k = Vec::new();
+        let mut phi_k = Vec::with_capacity(vocab_size);
         for _v in 0..vocab_size {
             phi_k.push(1.0 / vocab_size as f64);
         }
         phi.push(phi_k);
     }
     // nkv
-    let mut nkv_0 = Vec::new();
+    let mut nkv_0 = Vec::with_capacity(vocab_size);
     for _v in 0..vocab_size {
         nkv_0.push(0);
     }
@@ -206,7 +206,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     }
     nkv.push(nkv_0);
     for _k in 1..num_topics {
-        let mut nkv_k = Vec::new();
+        let mut nkv_k = Vec::with_capacity(vocab_size);
         for _v in 0..vocab_size {
             nkv_k.push(0);
         }
@@ -222,7 +222,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
                 // Sample z_di
-                let mut weights: Vec<f64> = Vec::new();
+                let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
                 for k in 0..num_topics {
                     weights.push(theta[d][k] * phi[k][v]);
                 }
@@ -240,7 +240,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
                 nkv[new_z_di][v] += 1;
             }
             // Sample theta_d
-            let mut alpha_d: Vec<f64> = Vec::new();
+            let mut alpha_d: Vec<f64> = Vec::with_capacity(num_topics);
             for k in 0..num_topics {
                 alpha_d.push(ndk[d][k] as f64 + alpha[k]);
             }
@@ -249,7 +249,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
         }
         for k in 0..num_topics {
             // Sample phi_k
-            let mut beta_k: Vec<f64> = Vec::new();
+            let mut beta_k: Vec<f64> = Vec::with_capacity(vocab_size);
             for v in 0..vocab_size {
                 beta_k.push(nkv[k][v] as f64 + beta[v]);
             }
