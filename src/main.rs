@@ -265,6 +265,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
         }
         println!("log_likelihood = {}", log_likelihood);
     }
+    // Distribution of z
     for (d, z_samples_d) in z_samples.iter().enumerate() {
         for (i, samples) in z_samples_d.iter().enumerate() {
             let mut sum = 0.0;
