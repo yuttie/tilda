@@ -291,6 +291,8 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
     let mut phi:   Vec<Vec<f64>>   = Vec::with_capacity(num_topics);
     let mut ndk:   Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     let mut nkv:   Vec<Vec<usize>> = Vec::with_capacity(num_topics);
+    let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
+    let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
     for bag in &dataset {
         // n_d
@@ -302,11 +304,13 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
         z.push(vec![0; n_d]);
         theta.push(vec![0.0; num_topics]);
         ndk.push(vec![0; num_topics]);
+        nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
     }
     for k in 0..num_topics {
         phi.push(vec![0.0; vocab_size]);
         nkv.push(vec![0; vocab_size]);
+        nk.push(0);
     }
 
     // Initialize w, z, ndk and nkv
@@ -320,6 +324,8 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
                 z[d][i] = k;
                 ndk[d][k] += 1;
                 nkv[k][v] += 1;
+                nd[d] += 1;
+                nk[k] += 1;
                 i += 1;
             }
         }
@@ -335,6 +341,8 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples) {
         // println!("s = {}", s);
+        let alpha_sum: f64 = alpha.iter().sum();
+        let beta_sum: f64 = beta.iter().sum();
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -342,25 +350,13 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
                 let old_z_di = z[d][i];
                 ndk[d][old_z_di] -= 1;
                 nkv[old_z_di][v] -= 1;
+                nd[d] -= 1;
+                nk[old_z_di] -= 1;
                 // Sample z_di
                 let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
                 for k in 0..num_topics {
-                    let E_theta_dk = {
-                        let mut sum = 0.0;
-                        for k in 0..num_topics {
-                            sum += ndk[d][k] as f64 + alpha[k];
-                        }
-                        (ndk[d][k] as f64 + alpha[k]) / sum
-                    };
-
-                    let E_phi_kv = {
-                        let mut sum = 0.0;
-                        for v in 0..vocab_size {
-                            sum += nkv[k][v] as f64 + beta[v];
-                        }
-                        (nkv[k][v] as f64 + beta[v]) / sum
-                    };
-
+                    let E_theta_dk = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
+                    let E_phi_kv = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
                     weights.push(E_theta_dk * E_phi_kv);
                 }
                 // println!("{:?}", weights);
@@ -369,6 +365,8 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
                 z[d][i] = new_z_di;
                 ndk[d][new_z_di] += 1;
                 nkv[new_z_di][v] += 1;
+                nd[d] += 1;
+                nk[new_z_di] += 1;
                 // Save the sample
                 if s >= burn_in {
                     z_samples[d][i][new_z_di] += 1;
