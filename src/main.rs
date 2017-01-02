@@ -136,7 +136,7 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     println!("M = {}", num_docs);
     println!("V = {}", vocab_size);
 
-    write!(&mut std::io::stderr(), "Initializing...");
+    write!(&mut std::io::stderr(), "Initializing...").unwrap();
 
     // Construct zero-filled nested arrays
     let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
@@ -194,10 +194,10 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     println!("phi = {:?}", phi);
     println!("nkv = {:?}", nkv);
 
-    writeln!(&mut std::io::stderr(), "\rInitialized.");
+    writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
 
     // Sampling
-    write!(&mut std::io::stderr(), "Sampling...");
+    write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples) {
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
@@ -245,9 +245,17 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
             }
         }
         println!("log_likelihood = {}", log_likelihood);
-        write!(&mut std::io::stderr(), "\rSampling... {}/{}", s, num_samples);
+        if s < burn_in {
+            write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
+        }
+        else {
+            if s == burn_in {
+                writeln!(&mut std::io::stderr(), "").unwrap();
+            }
+            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples).unwrap();
+        }
     }
-    writeln!(&mut std::io::stderr(), "\rSampled.");
+    writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
 
     // Distribution of z
     for (d, z_samples_d) in z_samples.iter().enumerate() {
