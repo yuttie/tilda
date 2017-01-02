@@ -273,6 +273,170 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     }
 }
 
+fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
+    let num_docs: usize = dataset.len();
+    let num_topics: usize = alpha.len();
+    let vocab_size: usize = beta.len();
+    let mut rng = rand::thread_rng();
+    // println!("K = {}", num_topics);
+    // println!("M = {}", num_docs);
+    // println!("V = {}", vocab_size);
+
+    write!(&mut std::io::stderr(), "Initializing...").unwrap();
+
+    // Construct zero-filled nested arrays
+    let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    let mut theta: Vec<Vec<f64>>   = Vec::with_capacity(num_docs);
+    let mut phi:   Vec<Vec<f64>>   = Vec::with_capacity(num_topics);
+    let mut ndk:   Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    let mut nkv:   Vec<Vec<usize>> = Vec::with_capacity(num_topics);
+    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+    for bag in &dataset {
+        // n_d
+        let mut n_d = 0;
+        for &count in bag.values() {
+            n_d += count;
+        }
+        w.push(vec![0; n_d]);
+        z.push(vec![0; n_d]);
+        theta.push(vec![0.0; num_topics]);
+        ndk.push(vec![0; num_topics]);
+        z_samples.push(vec![vec![0; num_topics]; n_d]);
+    }
+    for k in 0..num_topics {
+        phi.push(vec![0.0; vocab_size]);
+        nkv.push(vec![0; vocab_size]);
+    }
+
+    // Initialize w, z, ndk and nkv
+    let among_topics = Range::new(0, num_topics);
+    for (d, bag) in dataset.iter().enumerate() {
+        let mut i = 0;
+        for (&v, &count) in bag {
+            for _ in 0..count {
+                w[d][i] = v;
+                let k = among_topics.ind_sample(&mut rng);
+                z[d][i] = k;
+                ndk[d][k] += 1;
+                nkv[k][v] += 1;
+                i += 1;
+            }
+        }
+    }
+
+    // println!("z = {:?}", z);
+    // println!("ndk = {:?}", ndk);
+    // println!("nkv = {:?}", nkv);
+
+    writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
+
+    // Sampling
+    write!(&mut std::io::stderr(), "Sampling...").unwrap();
+    for s in 0..(burn_in + num_samples) {
+        // println!("s = {}", s);
+        for (d, w_d) in w.iter().enumerate() {
+            for (i, &w_di) in w_d.iter().enumerate() {
+                let v = w_di;
+                //
+                let old_z_di = z[d][i];
+                ndk[d][old_z_di] -= 1;
+                nkv[old_z_di][v] -= 1;
+                // Sample z_di
+                let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
+                for k in 0..num_topics {
+                    let E_theta_dk = {
+                        let mut sum = 0.0;
+                        for k in 0..num_topics {
+                            sum += ndk[d][k] as f64 + alpha[k];
+                        }
+                        (ndk[d][k] as f64 + alpha[k]) / sum
+                    };
+
+                    let E_phi_kv = {
+                        let mut sum = 0.0;
+                        for v in 0..vocab_size {
+                            sum += nkv[k][v] as f64 + beta[v];
+                        }
+                        (nkv[k][v] as f64 + beta[v]) / sum
+                    };
+
+                    weights.push(E_theta_dk * E_phi_kv);
+                }
+                // println!("{:?}", weights);
+                let cat = Categorical::new(weights);
+                let new_z_di = cat.ind_sample(&mut rng);
+                z[d][i] = new_z_di;
+                ndk[d][new_z_di] += 1;
+                nkv[new_z_di][v] += 1;
+                // Save the sample
+                if s >= burn_in {
+                    z_samples[d][i][new_z_di] += 1;
+                }
+            }
+            // println!("{:?}", z);
+        }
+        // println!("{:?}", z);
+        // Infer phi and theta
+        for d in 0..num_docs {
+            for k in 0..num_topics {
+                theta[d][k] = {
+                    let mut sum = 0.0;
+                    for k in 0..num_topics {
+                        sum += ndk[d][k] as f64 + alpha[k];
+                    }
+                    (ndk[d][k] as f64 + alpha[k]) / sum
+                };
+            }
+        }
+        for k in 0..num_topics {
+            for v in 0..vocab_size {
+                phi[k][v] = {
+                    let mut sum = 0.0;
+                    for v in 0..vocab_size {
+                        sum += nkv[k][v] as f64 + beta[v];
+                    }
+                    (nkv[k][v] as f64 + beta[v]) / sum
+                };
+            }
+        }
+        // Evaluate the log-likelihood value for the current parameters
+        let mut log_likelihood = 0.0;
+        for k in 0..num_topics {
+            for v in 0..vocab_size {
+                log_likelihood += nkv[k][v] as f64 * f64::ln(phi[k][v]);
+            }
+        }
+        // println!("log_likelihood = {}", log_likelihood);
+        if s < burn_in {
+            write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
+        }
+        else {
+            if s == burn_in {
+                writeln!(&mut std::io::stderr(), "").unwrap();
+            }
+            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples).unwrap();
+        }
+        println!("{} {}", s, log_likelihood);
+    }
+    writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
+
+    // Distribution of z
+    for (d, z_samples_d) in z_samples.iter().enumerate() {
+        for (i, samples) in z_samples_d.iter().enumerate() {
+            let mut sum = 0.0;
+            for k in 0..num_topics {
+                sum += samples[k] as f64;
+            }
+            // print!("z[{:3}][{:3}] = ", d, i);
+            // for k in 0..num_topics {
+            //     print!("{:3}:{:.2} ", k, samples[k] as f64 / sum);
+            // }
+            // println!("");
+        }
+    }
+}
+
 fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
