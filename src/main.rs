@@ -149,7 +149,7 @@ fn digamma(x: f64) -> f64 {
     else if x < 0.0 {
         // x is negative non-integer
         // Use a reflection formula: psi(1 - x) - psi(x) = pi * cot(pi * x)
-        digamma(1 - x) + f64::consts::PI / f64::tan(-f64::consts::PI * x)
+        digamma(1.0 - x) + f64::consts::PI / f64::tan(-f64::consts::PI * x)
     }
     else {
         // x is a positive real number
