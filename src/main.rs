@@ -156,12 +156,15 @@ fn digamma(x: f64) -> f64 {
             d1 - 1.0 / x
         }
         else {
+            // Reduce to digamma(x + n), where y = x + n >= c
             let mut result = 0.0;
             let mut y = x;
             while y < c {
+                // psi(x + 1) = psi(x) + 1 / x
                 result -= 1.0 / y;
                 y += 1.0;
             }
+            // Compute digamma(y)
             let mut r = 1.0 / y;
             result += f64::ln(y) - 0.5 * r;
             r = r * r;
