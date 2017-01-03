@@ -133,9 +133,9 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 fn digamma(x: f64) -> f64 {
     const s:  f64 = 1e-5;
     const c:  f64 = 8.5;
-    const s3: f64 = 8.333333333e-2;
-    const s4: f64 = 8.333333333e-3;
-    const s5: f64 = 3.968253968e-3;
+    const s3: f64 = 1.0 / 12.0;
+    const s4: f64 = 1.0 / 120.0;
+    const s5: f64 = 1.0 / 252.0;
     const d1: f64 = -0.5772156649015328606065120;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
