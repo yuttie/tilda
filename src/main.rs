@@ -137,7 +137,7 @@ fn digamma(x: f64) -> f64 {
     const s3: f64 = 1.0 / 12.0;
     const s4: f64 = 1.0 / 120.0;
     const s5: f64 = 1.0 / 252.0;
-    const d1: f64 = -0.5772156649015328606065120;
+    const digamma1: f64 = -0.5772156649015328606065120;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
         f64::NAN
@@ -154,7 +154,7 @@ fn digamma(x: f64) -> f64 {
     else {
         // x is a positive real number
         if x <= s {
-            d1 - 1.0 / x
+            digamma1 - 1.0 / x
         }
         else {
             // Reduce to digamma(x + n), where y = x + n >= c
