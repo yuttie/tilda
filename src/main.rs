@@ -127,6 +127,49 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
+// The implementation is based on "[Algorithm AS 103] Psi (Digamma) Function",
+// José-Miguel Bernardo, Applied Statistics, Volume 25, pp. 315--317, 1976.
+// http://www.uv.es/~bernardo/1976AppStatist.pdf
+fn digamma(x: f64) -> f64 {
+    const s = 1e-5;
+    const c = 8.5;
+    const s3 = 8.333333333e-2;
+    const s4 = 8.333333333e-3;
+    const s5 = 3.968253968e-3;
+    const d1 = -0.5772156649015328606065120;
+
+    if x == f64::NEG_INFINITY || f64::is_nan(x) {
+        f64::NAN
+    }
+    else if x <= 0.0 && f64::floor(x) == x {
+        // x is zero or a negative integer
+        f64::NAN
+    }
+    else if x < 0.0 {
+        // x is negative non-integer
+        // Use a reflection formula: psi(1 - x) - psi(x) = pi * cot(pi * x)
+        digamma(1 - x) + f64::PI / f64::tan(-f64::PI * x)
+    }
+    else {
+        // x is a positive real number
+        if x <= s {
+            d1 - 1.0 / x
+        }
+        else {
+            let mut result = 0.0;
+            let mut y = x;
+            while y < c {
+                result -= 1.0 / y;
+                y += 1.0;
+            }
+            let mut r = 1.0 / y;
+            result += f64::ln(y) - 0.5 * r;
+            r = r * r;
+            result - r * (s3 - r * (s4 - r * s5))
+        }
+    }
+}
+
 fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha.len();
