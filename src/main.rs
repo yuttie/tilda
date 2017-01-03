@@ -8,6 +8,7 @@ use std::env;
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead, Write};
 use std::iter;
+use std::f64;
 
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
