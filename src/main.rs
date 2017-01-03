@@ -131,12 +131,12 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 // José-Miguel Bernardo, Applied Statistics, Volume 25, pp. 315--317, 1976.
 // http://www.uv.es/~bernardo/1976AppStatist.pdf
 fn digamma(x: f64) -> f64 {
-    const s = 1e-5;
-    const c = 8.5;
-    const s3 = 8.333333333e-2;
-    const s4 = 8.333333333e-3;
-    const s5 = 3.968253968e-3;
-    const d1 = -0.5772156649015328606065120;
+    const s:  f64 = 1e-5;
+    const c:  f64 = 8.5;
+    const s3: f64 = 8.333333333e-2;
+    const s4: f64 = 8.333333333e-3;
+    const s5: f64 = 3.968253968e-3;
+    const d1: f64 = -0.5772156649015328606065120;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
         f64::NAN
