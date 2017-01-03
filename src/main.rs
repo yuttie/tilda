@@ -138,15 +138,15 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 // https://github.com/lawrennd/gca/blob/master/matlab/digamma.m
 // http://d.hatena.ne.jp/echizen_tm/20100627/1277646468
 fn digamma(x: f64) -> f64 {
-    const s:  f64 = 1e-6;
-    const c:  f64 = 12.0;
-    const s3: f64 = 1.0 / 12.0;
-    const s4: f64 = 1.0 / 120.0;
-    const s5: f64 = 1.0 / 252.0;
-    const s6: f64 = 1.0 / 240.0;
-    const s7: f64 = 1.0 / 132.0;
-    const digamma1: f64 = -0.5772156649015328606065120;
-    const trigamma1: f64 = f64::consts::PI * f64::consts::PI / 6.0;
+    const S:  f64 = 1e-6;
+    const C:  f64 = 12.0;
+    const S3: f64 = 1.0 / 12.0;
+    const S4: f64 = 1.0 / 120.0;
+    const S5: f64 = 1.0 / 252.0;
+    const S6: f64 = 1.0 / 240.0;
+    const S7: f64 = 1.0 / 132.0;
+    const DIGAMMA1: f64 = -0.5772156649015328606065120;
+    const TRIGAMMA1: f64 = f64::consts::PI * f64::consts::PI / 6.0;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
         f64::NAN
@@ -162,14 +162,14 @@ fn digamma(x: f64) -> f64 {
     }
     else {
         // x is a positive real number
-        if x <= s {
-            digamma1 - 1.0 / x + trigamma1 * x
+        if x <= S {
+            DIGAMMA1 - 1.0 / x + TRIGAMMA1 * x
         }
         else {
-            // Reduce to digamma(x + n), where y = x + n >= c
+            // Reduce to digamma(x + n), where y = x + n >= C
             let mut result = 0.0;
             let mut y = x;
-            while y < c {
+            while y < C {
                 // psi(x + 1) = psi(x) + 1 / x
                 result -= 1.0 / y;
                 y += 1.0;
@@ -178,7 +178,7 @@ fn digamma(x: f64) -> f64 {
             let mut r = 1.0 / y;
             result += f64::ln(y) - 0.5 * r;
             r = r * r;
-            result - r * (s3 - r * (s4 - r * (s5 - r * (s6 - r * s7))))
+            result - r * (S3 - r * (S4 - r * (S5 - r * (S6 - r * S7))))
         }
     }
 }
