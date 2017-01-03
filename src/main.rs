@@ -131,13 +131,22 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 // The implementation is based on "[Algorithm AS 103] Psi (Digamma) Function",
 // José-Miguel Bernardo, Applied Statistics, Volume 25, pp. 315--317, 1976.
 // http://www.uv.es/~bernardo/1976AppStatist.pdf
+//
+// Precision was improved based on the implementations from the following materials:
+// https://boxtown.io/docs/statrs/0.3.0/src/statrs/src/function/gamma.rs.html#269-308
+// https://github.com/bos/math-functions/blob/master/Numeric/SpecFunctions/Internal.hs
+// https://github.com/lawrennd/gca/blob/master/matlab/digamma.m
+// http://d.hatena.ne.jp/echizen_tm/20100627/1277646468
 fn digamma(x: f64) -> f64 {
-    const s:  f64 = 1e-5;
-    const c:  f64 = 8.5;
+    const s:  f64 = 1e-6;
+    const c:  f64 = 12.0;
     const s3: f64 = 1.0 / 12.0;
     const s4: f64 = 1.0 / 120.0;
     const s5: f64 = 1.0 / 252.0;
+    const s6: f64 = 1.0 / 240.0;
+    const s7: f64 = 1.0 / 132.0;
     const digamma1: f64 = -0.5772156649015328606065120;
+    const trigamma1: f64 = f64::consts::PI * f64::consts::PI / 6.0;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
         f64::NAN
@@ -154,7 +163,7 @@ fn digamma(x: f64) -> f64 {
     else {
         // x is a positive real number
         if x <= s {
-            digamma1 - 1.0 / x
+            digamma1 - 1.0 / x + trigamma1 * x
         }
         else {
             // Reduce to digamma(x + n), where y = x + n >= c
@@ -169,7 +178,7 @@ fn digamma(x: f64) -> f64 {
             let mut r = 1.0 / y;
             result += f64::ln(y) - 0.5 * r;
             r = r * r;
-            result - r * (s3 - r * (s4 - r * s5))
+            result - r * (s3 - r * (s4 - r * (s5 - r * (s6 - r * s7))))
         }
     }
 }
