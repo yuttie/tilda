@@ -551,7 +551,7 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>,
     let mut w: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     for d in 0..num_docs {
         theta.push(dir_alpha.ind_sample(&mut rng));
-        nd.push(f64::floor(lognorm.ind_sample(&mut rng)) as usize);
+        nd.push(f64::ceil(lognorm.ind_sample(&mut rng)) as usize);
         let cat_theta = Categorical::new(theta[d].clone());
         let mut z_d = Vec::with_capacity(nd[d]);
         let mut w_d = Vec::with_capacity(nd[d]);
