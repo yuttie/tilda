@@ -531,7 +531,7 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
     }
 }
 
-fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>, beta: Vec<f64>) -> (Vec<Bag>, usize) {
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
@@ -565,15 +565,18 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>,
     }
     // Make bags
     let mut bags: Vec<Bag> = Vec::new();
+    let mut id_map: HashMap<usize, usize> = HashMap::new();
     for w_d in w {
         let mut bag: Bag = Bag::new();
         for v in w_d {
-            let counter = bag.entry(v).or_insert(0);
+            let next_id = id_map.len();
+            let id: usize = *id_map.entry(v).or_insert(next_id);
+            let counter = bag.entry(id).or_insert(0);
             *counter += 1;
         }
         bags.push(bag);
     }
-    bags
+    (bags, id_map.len())
 }
 
 fn main() {
