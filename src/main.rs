@@ -1,3 +1,4 @@
+extern crate clap;
 extern crate rand;
 
 use std::string::String;
@@ -10,6 +11,7 @@ use std::io::{self, BufReader, BufRead, Write};
 use std::iter;
 use std::f64;
 
+use clap::{Arg, App, AppSettings};
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
 
@@ -580,21 +582,49 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>,
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let (labels, dataset, vocab_size) = load_bags(&args[1]).unwrap();
-    let vocab: Option<Vec<String>> = if args.len() < 3 {
-        None
+    let matches = App::new("TiLDA")
+        .version("0.1")
+        .author("Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>")
+        .about("Latent Dirichlet allocation implemented in Rust")
+        .arg(Arg::with_name("test-dataset")
+             .long("test-dataset")
+             .help("Run with automatically generated dataset"))
+        .arg(Arg::with_name("INPUT")
+             .help("Sets the input file to use")
+             .required(false)
+             .index(1))
+        .arg(Arg::with_name("VOCAB")
+             .help("Sets the input file to use")
+             .required(false)
+             .index(2))
+        .setting(AppSettings::ArgRequiredElseHelp)
+        .get_matches();
+
+    if matches.is_present("test-dataset") {
+        let num_topics = 10;
+        let vocab_size = 10000;
+        let alpha: Vec<f64> = vec![0.1; num_topics];
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+        write!(&mut std::io::stderr(), "Generating a dataset...").unwrap();
+        let (dataset, vocab_size) = make_dataset(1000, f64::ln(400f64), 0.3, alpha.clone(), beta.clone());
+        writeln!(&mut std::io::stderr(), " done.").unwrap();
+        writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+
+        lda_collapsed(dataset, alpha, beta, 1000, 1000);
     }
-    else {
-        Some(load_text_vocabulary(&args[2]).unwrap())
+    else if let Some(input_fp) = matches.value_of("INPUT") {
+        let (labels, dataset, vocab_size) = load_bags(input_fp).unwrap();
+        let vocab: Option<Vec<String>> = if let Some(vocab_fp) = matches.value_of("VOCAB") {
+            Some(load_text_vocabulary(vocab_fp).unwrap())
+        }
+        else {
+            None
+        };
+        let num_topics = 10;
+        let alpha: Vec<f64> = vec![0.1; num_topics];
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+
+        lda_collapsed(dataset, alpha, beta, 1000, 1000);
     };
-    println!("{:?}", labels);
-    println!("{:?}", dataset);
-    println!("{:?}", vocab);
-
-    let num_topics = 3;
-    let alpha: Vec<f64> = iter::repeat(1.0).take(num_topics).collect();
-    let beta: Vec<f64> = iter::repeat(1.0).take(vocab_size).collect();
-
-    lda(dataset, alpha, beta, 1000, 10000);
 }

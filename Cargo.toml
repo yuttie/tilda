@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>"]
 
 [dependencies]
+clap = "~2.19.0"
 rand = "0.3"
