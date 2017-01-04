@@ -188,6 +188,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
+    let mut alpha = alpha;
+    let mut beta = beta;
     println!("K = {}", num_topics);
     println!("M = {}", num_docs);
     println!("V = {}", vocab_size);
@@ -201,6 +203,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     let mut phi:   Vec<Vec<f64>>   = Vec::with_capacity(num_topics);
     let mut ndk:   Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     let mut nkv:   Vec<Vec<usize>> = Vec::with_capacity(num_topics);
+    let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
+    let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
     for bag in &dataset {
         // n_d
@@ -212,11 +216,13 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
         z.push(vec![0; n_d]);
         theta.push(vec![0.0; num_topics]);
         ndk.push(vec![0; num_topics]);
+        nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
     }
     for k in 0..num_topics {
         phi.push(vec![0.0; vocab_size]);
         nkv.push(vec![0; vocab_size]);
+        nk.push(0);
     }
 
     // Initialize w, z, ndk and nkv
@@ -230,6 +236,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
                 z[d][i] = k;
                 ndk[d][k] += 1;
                 nkv[k][v] += 1;
+                nd[d] += 1;
+                nk[k] += 1;
                 i += 1;
             }
         }
@@ -255,6 +263,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
     // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples) {
+        let alpha_sum: f64 = alpha.iter().sum();
+        let beta_sum: f64 = beta.iter().sum();
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -275,6 +285,8 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
                 ndk[d][new_z_di] += 1;
                 nkv[old_z_di][v] -= 1;
                 nkv[new_z_di][v] += 1;
+                nk[old_z_di] -= 1;
+                nk[new_z_di] += 1;
             }
             // Sample theta_d
             let mut alpha_d: Vec<f64> = Vec::with_capacity(num_topics);
@@ -292,6 +304,25 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
             }
             let dir = Dirichlet::new(beta_k);
             phi[k] = dir.ind_sample(&mut rng);
+        }
+        // Update alpha and beta
+        for k in 0..num_topics {
+            let mut x = -(num_docs as f64) * digamma(alpha[k]);
+            let mut y = -(num_docs as f64) * digamma(alpha_sum);
+            for d in 0..num_docs {
+                x += digamma(ndk[d][k] as f64 + alpha[k]);
+                y += digamma(nd[d] as f64 + alpha_sum);
+            }
+            alpha[k] = alpha[k] * x / y;
+        }
+        for v in 0..vocab_size {
+            let mut x = -(num_topics as f64) * digamma(beta[v]);
+            let mut y = -(num_topics as f64) * digamma(beta_sum);
+            for k in 0..num_topics {
+                x += digamma(nkv[k][v] as f64 + beta[v]);
+                y += digamma(nk[k] as f64 + beta_sum);
+            }
+            beta[v] = beta[v] * x / y;
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
@@ -334,6 +365,8 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
+    let mut alpha = alpha;
+    let mut beta = beta;
     // println!("K = {}", num_topics);
     // println!("M = {}", num_docs);
     // println!("V = {}", vocab_size);
@@ -441,6 +474,25 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
             for v in 0..vocab_size {
                 phi[k][v] = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
             }
+        }
+        // Update alpha and beta
+        for k in 0..num_topics {
+            let mut x = -(num_docs as f64) * digamma(alpha[k]);
+            let mut y = -(num_docs as f64) * digamma(alpha_sum);
+            for d in 0..num_docs {
+                x += digamma(ndk[d][k] as f64 + alpha[k]);
+                y += digamma(nd[d] as f64 + alpha_sum);
+            }
+            alpha[k] = alpha[k] * x / y;
+        }
+        for v in 0..vocab_size {
+            let mut x = -(num_topics as f64) * digamma(beta[v]);
+            let mut y = -(num_topics as f64) * digamma(beta_sum);
+            for k in 0..num_topics {
+                x += digamma(nkv[k][v] as f64 + beta[v]);
+                y += digamma(nk[k] as f64 + beta_sum);
+            }
+            beta[v] = beta[v] * x / y;
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
