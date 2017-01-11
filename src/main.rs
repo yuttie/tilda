@@ -664,3 +664,29 @@ fn main() {
         lda_collapsed(dataset, alpha, beta, 1000, 1000);
     };
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn compact_makes_dense_word_ids() {
+        let num_topics = 4;
+        let vocab_size = 10000;
+        let alpha: Vec<f64> = vec![0.1; num_topics];
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+        let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, alpha, beta);
+        let (_, compact_vocab_size, _) = ::compact_words(dataset.clone());
+        assert!(compact_vocab_size < vocab_size);
+    }
+
+    #[test]
+    fn decompact_inverses_compact() {
+        let num_topics = 4;
+        let vocab_size = 10000;
+        let alpha: Vec<f64> = vec![0.1; num_topics];
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+        let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, alpha, beta);
+        let (compacted_dataset, _, rev_id_map) = ::compact_words(dataset.clone());
+        let (decompacted_dataset, _) = ::decompact_words(compacted_dataset, rev_id_map);
+        assert_eq!(decompacted_dataset, dataset);
+    }
+}
