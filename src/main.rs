@@ -182,13 +182,25 @@ fn digamma(x: f64) -> f64 {
     }
 }
 
-fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
+struct Model {
+    alpha_init: Vec<f64>,
+    beta_init: Vec<f64>,
+    burn_in: usize,
+    num_samples: usize,
+    alpha: Vec<f64>,
+    beta: Vec<f64>,
+    theta: Vec<Vec<f64>>,
+    phi:   Vec<Vec<f64>>,
+    z_samples: Vec<Vec<Vec<usize>>>,
+}
+
+fn lda(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
-    let num_topics: usize = alpha.len();
-    let vocab_size: usize = beta.len();
+    let num_topics: usize = alpha_init.len();
+    let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha;
-    let mut beta = beta;
+    let mut alpha = alpha_init.clone();
+    let mut beta = beta_init.clone();
     println!("K = {}", num_topics);
     println!("M = {}", num_docs);
     println!("V = {}", vocab_size);
@@ -357,15 +369,27 @@ fn lda(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_s
             println!("");
         }
     }
+
+    Model {
+        alpha_init:  alpha_init,
+        beta_init:   beta_init,
+        burn_in:     burn_in,
+        num_samples: num_samples,
+        alpha:       alpha,
+        beta:        beta,
+        theta:       theta,
+        phi:         phi,
+        z_samples:   z_samples,
+    }
 }
 
-fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: usize, num_samples: usize) {
+fn lda_collapsed(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
-    let num_topics: usize = alpha.len();
-    let vocab_size: usize = beta.len();
+    let num_topics: usize = alpha_init.len();
+    let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha;
-    let mut beta = beta;
+    let mut alpha = alpha_init.clone();
+    let mut beta = beta_init.clone();
     // println!("K = {}", num_topics);
     // println!("M = {}", num_docs);
     // println!("V = {}", vocab_size);
@@ -527,6 +551,18 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha: Vec<f64>, beta: Vec<f64>, burn_in: us
             // }
             // println!("");
         }
+    }
+
+    Model {
+        alpha_init:  alpha_init,
+        beta_init:   beta_init,
+        burn_in:     burn_in,
+        num_samples: num_samples,
+        alpha:       alpha,
+        beta:        beta,
+        theta:       theta,
+        phi:         phi,
+        z_samples:   z_samples,
     }
 }
 
