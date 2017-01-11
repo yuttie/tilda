@@ -18,16 +18,14 @@ use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSampl
 
 type Bag = HashMap<usize, usize>;
 
-fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<usize>, Vec<Bag>, usize)> {
+fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Bag>, usize)> {
     let mut bags = Vec::new();
-    let mut labels = Vec::new();
     let mut vocab_size = 0;
     let file = try!(File::open(path));
     let file = BufReader::new(file);
     for line in file.lines() {
         let line = line.unwrap();
         let mut iter = line.split_whitespace();
-        let label = iter.next().unwrap().parse::<usize>().unwrap();
         let mut bag = Bag::new();
         for elm in iter {
             let mut iter = elm.split(':');
@@ -38,10 +36,9 @@ fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<usize>, Vec<Bag>, usize
                 vocab_size = index;
             }
         }
-        labels.push(label);
         bags.push(bag);
     }
-    Ok((labels, bags, vocab_size))
+    Ok((bags, vocab_size))
 }
 
 fn load_text_vocabulary<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
@@ -614,7 +611,7 @@ fn main() {
         lda_collapsed(dataset, alpha, beta, 1000, 1000);
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
-        let (labels, dataset, vocab_size) = load_bags(input_fp).unwrap();
+        let (dataset, vocab_size) = load_bags(input_fp).unwrap();
         let vocab: Option<Vec<String>> = if let Some(vocab_fp) = matches.value_of("VOCAB") {
             Some(load_text_vocabulary(vocab_fp).unwrap())
         }
