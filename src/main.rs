@@ -578,6 +578,42 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>,
     (bags, id_map.len())
 }
 
+fn compact_words(bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>) {
+    let mut new_bags: Vec<Bag> = Vec::new();
+    let mut id_map: HashMap<usize, usize> = HashMap::new();
+    for bag in bags {
+        let mut new_bag: Bag = Bag::new();
+        for (id, c) in bag {
+            let next_id = id_map.len();
+            let new_id: usize = *id_map.entry(id).or_insert(next_id);
+            new_bag.insert(new_id, c);
+        }
+        new_bags.push(new_bag);
+    }
+    let mut rev_id_map: HashMap<usize, usize> = HashMap::new();
+    for (k, v) in id_map {
+        rev_id_map.insert(v, k);
+    }
+    (new_bags, rev_id_map.len(), rev_id_map)
+}
+
+fn decompact_words(bags: Vec<Bag>, id_map: HashMap<usize, usize>) -> (Vec<Bag>, usize) {
+    let mut new_bags: Vec<Bag> = Vec::new();
+    let mut vocab_size = 0;
+    for bag in bags {
+        let mut new_bag: Bag = Bag::new();
+        for (id, c) in bag {
+            let new_id: usize = id_map[&id];
+            new_bag.insert(new_id, c);
+            if new_id + 1 < vocab_size {
+                vocab_size = new_id + 1;
+            }
+        }
+        new_bags.push(new_bag);
+    }
+    (new_bags, vocab_size)
+}
+
 fn main() {
     let matches = App::new("TiLDA")
         .version("0.1")
