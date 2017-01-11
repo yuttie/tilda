@@ -641,6 +641,9 @@ fn main() {
         write!(&mut std::io::stderr(), "Generating a dataset...").unwrap();
         let (dataset, vocab_size) = make_dataset(1000, f64::ln(400f64), 0.3, alpha.clone(), beta.clone());
         writeln!(&mut std::io::stderr(), " done.").unwrap();
+        write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
+        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
@@ -654,6 +657,9 @@ fn main() {
         else {
             None
         };
+        write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
+        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        writeln!(&mut std::io::stderr(), " done.").unwrap();
         let num_topics = 10;
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
