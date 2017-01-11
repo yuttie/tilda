@@ -602,7 +602,7 @@ fn decompact_words(bags: Vec<Bag>, id_map: HashMap<usize, usize>) -> (Vec<Bag>, 
         for (id, c) in bag {
             let new_id: usize = id_map[&id];
             new_bag.insert(new_id, c);
-            if new_id + 1 < vocab_size {
+            if vocab_size < new_id + 1 {
                 vocab_size = new_id + 1;
             }
         }
