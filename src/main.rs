@@ -194,6 +194,77 @@ struct Model {
     z_samples: Vec<Vec<Vec<usize>>>,
 }
 
+impl Model {
+    // phi^-1: VxK matrix
+    fn print_term_topics(&self) {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for v in 0..vocab_size {
+            print!("{}:", v);
+            for k in 0..num_topics {
+                if self.phi[k][v] > 1e-9 {
+                    print!(" {}*{}", self.phi[k][v], k);
+                }
+            }
+            println!("");
+        }
+    }
+
+    // phi^-1: VxK matrix
+    fn print_term_topics_with_vocab(&self, vocab: &[String]) {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for v in 0..vocab_size {
+            print!("{}:", vocab[v]);
+            for k in 0..num_topics {
+                if self.phi[k][v] > 1e-9 {
+                    print!(" {}*{}", self.phi[k][v], k);
+                }
+            }
+            println!("");
+        }
+    }
+
+    // theta: MxK matrix
+    fn print_doc_topics(&self) {
+        unimplemented!();
+    }
+
+    // phi: KxV matrix
+    fn print_topics(&self) {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for k in 0..num_topics {
+            print!("Topic {}:", k);
+            let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
+            topic_vec.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+            for (v, &prob) in topic_vec {
+                if prob > 1e-6 {
+                    print!(" {}*{}", prob, v);
+                }
+            }
+            println!("");
+        }
+    }
+
+    // phi: KxV matrix
+    fn print_topics_with_vocab(&self, vocab: &[String]) {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for k in 0..num_topics {
+            print!("Topic {}:", k);
+            let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
+            topic_vec.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+            for (v, &prob) in topic_vec {
+                if prob > 1e-6 {
+                    print!(" {}*{}", prob, vocab[v]);
+                }
+            }
+            println!("");
+        }
+    }
+}
+
 fn lda(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
@@ -693,11 +764,22 @@ fn main() {
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
         let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
-        let num_topics = 10;
+        let num_topics = 20;
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        lda_collapsed(dataset, alpha, beta, 1000, 1000);
+        let model = lda_collapsed(dataset, alpha, beta, 1000, 1000);
+
+        match vocab {
+            Some(vocab) => {
+                model.print_term_topics_with_vocab(&vocab);
+                model.print_topics_with_vocab(&vocab);
+            },
+            None => {
+                model.print_term_topics();
+                model.print_topics();
+            }
+        }
     };
 }
 
