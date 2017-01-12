@@ -265,7 +265,7 @@ impl Model {
     }
 }
 
-fn lda(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
+fn lda(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -288,7 +288,7 @@ fn lda(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: us
     let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
     let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    for bag in &dataset {
+    for bag in dataset {
         // n_d
         let mut n_d = 0;
         for &count in bag.values() {
@@ -454,7 +454,7 @@ fn lda(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: us
     }
 }
 
-fn lda_collapsed(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
+fn lda_collapsed(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -477,7 +477,7 @@ fn lda_collapsed(dataset: Vec<Bag>, alpha_init: Vec<f64>, beta_init: Vec<f64>, b
     let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
     let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    for bag in &dataset {
+    for bag in dataset {
         // n_d
         let mut n_d = 0;
         for &count in bag.values() {
@@ -751,7 +751,7 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        lda_collapsed(dataset, alpha, beta, 1000, 1000);
+        lda_collapsed(&dataset, alpha, beta, 1000, 1000);
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
         let (dataset, vocab_size) = load_bags(input_fp).unwrap();
@@ -768,7 +768,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = lda_collapsed(dataset, alpha, beta, 1000, 1000);
+        let model = lda_collapsed(&dataset, alpha, beta, 1000, 1000);
 
         match vocab {
             Some(vocab) => {
