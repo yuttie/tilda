@@ -637,19 +637,19 @@ fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in
     }
 }
 
-fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: Vec<f64>, beta: Vec<f64>) -> Vec<Bag> {
+fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], beta: &[f64]) -> Vec<Bag> {
     let num_topics: usize = alpha.len();
     let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
     // phi
-    let dir_beta = Dirichlet::new(beta);
+    let dir_beta = Dirichlet::new(beta.to_vec());
     let mut phi: Vec<Vec<f64>> = Vec::with_capacity(num_topics);
     for k in 0..num_topics {
         // Sample phi_k
         phi.push(dir_beta.ind_sample(&mut rng));
     }
     // theta, nd, z, w
-    let dir_alpha = Dirichlet::new(alpha);
+    let dir_alpha = Dirichlet::new(alpha.to_vec());
     let lognorm = LogNormal::new(mean_nd, std_dev_nd);
     let mut theta: Vec<Vec<f64>> = Vec::with_capacity(num_docs);
     let mut nd: Vec<usize> = Vec::with_capacity(num_docs);
@@ -743,7 +743,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
         write!(&mut std::io::stderr(), "Generating a dataset...").unwrap();
-        let dataset = make_dataset(1000, f64::ln(400f64), 0.3, alpha.clone(), beta.clone());
+        let dataset = make_dataset(1000, f64::ln(400f64), 0.3, &alpha, &beta);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
         let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
