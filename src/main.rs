@@ -265,13 +265,13 @@ impl Model {
     }
 }
 
-fn lda(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
+fn lda(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha_init.clone();
-    let mut beta = beta_init.clone();
+    let mut alpha = alpha_init.to_vec();
+    let mut beta = beta_init.to_vec();
     println!("K = {}", num_topics);
     println!("M = {}", num_docs);
     println!("V = {}", vocab_size);
@@ -442,8 +442,8 @@ fn lda(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usiz
     }
 
     Model {
-        alpha_init:  alpha_init,
-        beta_init:   beta_init,
+        alpha_init:  alpha_init.to_vec(),
+        beta_init:   beta_init.to_vec(),
         burn_in:     burn_in,
         num_samples: num_samples,
         alpha:       alpha,
@@ -454,13 +454,13 @@ fn lda(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usiz
     }
 }
 
-fn lda_collapsed(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, burn_in: usize, num_samples: usize) -> Model {
+fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha_init.clone();
-    let mut beta = beta_init.clone();
+    let mut alpha = alpha_init.to_vec();
+    let mut beta = beta_init.to_vec();
     // println!("K = {}", num_topics);
     // println!("M = {}", num_docs);
     // println!("V = {}", vocab_size);
@@ -625,8 +625,8 @@ fn lda_collapsed(dataset: &[Bag], alpha_init: Vec<f64>, beta_init: Vec<f64>, bur
     }
 
     Model {
-        alpha_init:  alpha_init,
-        beta_init:   beta_init,
+        alpha_init:  alpha_init.to_vec(),
+        beta_init:   beta_init.to_vec(),
         burn_in:     burn_in,
         num_samples: num_samples,
         alpha:       alpha,
@@ -751,7 +751,7 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        lda_collapsed(&dataset, alpha, beta, 1000, 1000);
+        lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
         let (dataset, vocab_size) = load_bags(input_fp).unwrap();
@@ -768,7 +768,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = lda_collapsed(&dataset, alpha, beta, 1000, 1000);
+        let model = lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
 
         match vocab {
             Some(vocab) => {
