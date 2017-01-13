@@ -786,7 +786,7 @@ mod tests {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
         let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, &alpha, &beta);
-        let (_, compact_vocab_size, _) = ::compact_words(dataset.clone());
+        let (_, compact_vocab_size, _) = ::compact_words(dataset);
         assert!(compact_vocab_size < vocab_size);
     }
 
