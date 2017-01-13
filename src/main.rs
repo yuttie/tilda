@@ -686,6 +686,62 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], b
     bags
 }
 
+fn make_visual_dataset(size: usize, num_docs: usize) -> Vec<Bag> {
+    let num_topics: usize = size + size;
+    let vocab_size: usize = size * size;
+    let mut rng = rand::thread_rng();
+    // phi
+    let mut phi: Vec<Vec<f64>> = vec![vec![0.0; vocab_size]; num_topics];
+    for k in 0..size {
+        let j = k;
+        for i in 0..size {
+            let v = j * size + i;
+            phi[k][v] = 1.0 / size as f64;
+        }
+    }
+    for k in size..num_topics {
+        let i = k - size;
+        for j in 0..size {
+            let v = j * size + i;
+            phi[k][v] = 1.0 / size as f64;
+        }
+    }
+    // theta
+    let mut theta: Vec<Vec<f64>> = Vec::with_capacity(num_docs);
+    let dir_alpha = Dirichlet::new(vec![1.0; num_topics]);
+    for _d in 0..num_docs {
+        theta.push(dir_alpha.ind_sample(&mut rng));
+    }
+    // nd
+    let mut nd: Vec<usize> = vec![127; num_docs];
+    // z, w
+    let mut z: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    let mut w: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+    for d in 0..num_docs {
+        let cat_theta = Categorical::new(theta[d].clone());
+        let mut z_d = Vec::with_capacity(nd[d]);
+        let mut w_d = Vec::with_capacity(nd[d]);
+        for i in 0..nd[d] {
+            z_d.push(cat_theta.ind_sample(&mut rng));
+            let cat_phi = Categorical::new(phi[z_d[i]].clone());
+            w_d.push(cat_phi.ind_sample(&mut rng));
+        }
+        z.push(z_d);
+        w.push(w_d);
+    }
+    // Make bags
+    let mut bags: Vec<Bag> = Vec::new();
+    for w_d in w {
+        let mut bag: Bag = Bag::new();
+        for v in w_d {
+            let counter = bag.entry(v).or_insert(0);
+            *counter += 1;
+        }
+        bags.push(bag);
+    }
+    bags
+}
+
 fn compact_words(mut bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>) {
     let mut id_map: HashMap<usize, usize> = HashMap::new();
     for bag in &mut bags {
@@ -724,6 +780,9 @@ fn main() {
         .arg(Arg::with_name("test-dataset")
              .long("test-dataset")
              .help("Run with automatically generated dataset"))
+        .arg(Arg::with_name("test-visual-dataset")
+             .long("test-visual-dataset")
+             .help("Run with automatically generated visual dataset"))
         .arg(Arg::with_name("INPUT")
              .help("Sets the input file to use")
              .required(false)
@@ -750,6 +809,27 @@ fn main() {
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
         lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
+    }
+    else if matches.is_present("test-visual-dataset") {
+        let size = 5;
+        let num_topics: usize = size + size;
+        let vocab_size: usize = size * size;
+        write!(&mut std::io::stderr(), "Generating a dataset...").unwrap();
+        let dataset = make_visual_dataset(size, 1000);
+        writeln!(&mut std::io::stderr(), " done.").unwrap();
+        write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
+        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        writeln!(&mut std::io::stderr(), " done.").unwrap();
+        writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
+
+        let alpha: Vec<f64> = vec![1.0; num_topics];
+        let beta: Vec<f64> = vec![1.0; vocab_size];
+
+        let model = lda_collapsed(&dataset, &alpha, &beta, 200, 200);
+        model.print_term_topics();
+        model.print_topics();
+        println!("alpha = {:?}", model.alpha);
+        println!("beta = {:?}", model.beta);
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
         let (dataset, vocab_size) = load_bags(input_fp).unwrap();
