@@ -10,6 +10,7 @@ use std::path::{Path};
 use std::io::{self, BufReader, BufRead, Write};
 use std::iter;
 use std::f64;
+use std::fmt::Display;
 
 use clap::{Arg, App, AppSettings};
 use rand::{Closed01, Rng};
@@ -225,6 +226,23 @@ impl Model {
         }
     }
 
+    // phi^-1: VxK matrix
+    fn print_term_topics_by<T, F>(&self, mut f: F)
+        where T: Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for v in 0..vocab_size {
+            print!("{}:", f(&v));
+            for k in 0..num_topics {
+                if self.phi[k][v] > 1e-9 {
+                    print!(" {}*{}", self.phi[k][v], k);
+                }
+            }
+            println!("");
+        }
+    }
+
     // theta: MxK matrix
     fn print_doc_topics(&self) {
         unimplemented!();
@@ -258,6 +276,25 @@ impl Model {
             for (v, &prob) in topic_vec {
                 if prob > 1e-6 {
                     print!(" {}*{}", prob, vocab[v]);
+                }
+            }
+            println!("");
+        }
+    }
+
+    // phi: KxV matrix
+    fn print_topics_by<T, F>(&self, mut f: F)
+        where T: Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta_init.len();
+        for k in 0..num_topics {
+            print!("Topic {}:", k);
+            let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
+            topic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+            for (v, &prob) in topic_vec {
+                if prob > 1e-6 {
+                    print!(" {}*{}", prob, f(&v));
                 }
             }
             println!("");
@@ -826,8 +863,8 @@ fn main() {
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
         let model = lda_collapsed(&dataset, &alpha, &beta, 200, 200);
-        model.print_term_topics();
-        model.print_topics();
+        model.print_term_topics_by(|id| rev_id_map[id]);
+        model.print_topics_by(|id| rev_id_map[id]);
         println!("alpha = {:?}", model.alpha);
         println!("beta = {:?}", model.beta);
     }
