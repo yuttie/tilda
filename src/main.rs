@@ -325,13 +325,17 @@ fn lda(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, n
         }
     }
     // Initialize theta, phi
-    for d in 0..num_docs {
-        let dir = Dirichlet::new(alpha.clone());
-        theta[d] = dir.ind_sample(&mut rng);
+    {
+        let dir_a = Dirichlet::new(alpha.clone());
+        for d in 0..num_docs {
+            theta[d] = dir_a.ind_sample(&mut rng);
+        }
     }
-    for k in 0..num_topics {
-        let dir = Dirichlet::new(beta.clone());
-        phi[k] = dir.ind_sample(&mut rng);
+    {
+        let dir_b = Dirichlet::new(beta.clone());
+        for k in 0..num_topics {
+            phi[k] = dir_b.ind_sample(&mut rng);
+        }
     }
 
     println!("z = {:?}", z);
