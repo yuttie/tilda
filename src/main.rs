@@ -59,11 +59,13 @@ struct Categorical {
 }
 
 impl Categorical {
-    fn new(weights: Vec<f64>) -> Categorical {
+    fn new(mut weights: Vec<f64>) -> Categorical {
         let sum: f64 = weights.iter().sum();
-        let prop: Vec<f64> = weights.iter().map(|w| w / sum).collect();
+        for w in &mut weights {
+            *w /= sum;
+        }
         Categorical {
-            prop: prop,
+            prop: weights,
         }
     }
 }
