@@ -853,6 +853,18 @@ fn main() {
              .possible_values(&["gibbs", "collapsed-gibbs"])
              .default_value("collapsed-gibbs")
              .help("Specify a method to use"))
+        .arg(Arg::with_name("burn-in")
+             .long("burn-in")
+             .takes_value(true)
+             .value_name("NUMBER")
+             .default_value("1000")
+             .help("Set the number of samples for burn-in"))
+        .arg(Arg::with_name("samples")
+             .long("samples")
+             .takes_value(true)
+             .value_name("NUMBER")
+             .default_value("1000")
+             .help("Set the number of samples"))
         .arg(Arg::with_name("test-dataset")
              .long("test-dataset")
              .help("Run with automatically generated dataset"))
@@ -883,6 +895,9 @@ fn main() {
         }
     };
 
+    let burn_in = value_t_or_exit!(matches, "burn-in", usize);
+    let samples = value_t_or_exit!(matches, "samples", usize);
+
     if matches.is_present("test-dataset") {
         let num_topics = 10;
         let vocab_size = 10000;
@@ -897,7 +912,7 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, 1000, 1000);
+        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
@@ -918,7 +933,7 @@ fn main() {
         let alpha: Vec<f64> = vec![1.0; num_topics];
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, 200, 200);
+        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
         model.print_term_topics_by(|id| rev_id_map[id]);
         model.print_topics_by(|id| rev_id_map[id]);
         println!("alpha = {:?}", model.alpha);
@@ -944,7 +959,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, 1000, 1000);
+        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
 
         match vocab {
             Some(vocab) => {
