@@ -5,10 +5,8 @@ use std::string::String;
 use std::collections::HashMap;
 use std::vec::Vec;
 use std::fs::{File};
-use std::env;
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead, Write};
-use std::iter;
 use std::f64;
 use std::fmt::Display;
 
@@ -26,7 +24,7 @@ fn load_bags<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Bag>, usize)> {
     let file = BufReader::new(file);
     for line in file.lines() {
         let line = line.unwrap();
-        let mut iter = line.split_whitespace();
+        let iter = line.split_whitespace();
         let mut bag = Bag::new();
         for elm in iter {
             let mut iter = elm.split(':');
@@ -253,7 +251,6 @@ impl Model {
     // phi: KxV matrix
     fn print_topics(&self) {
         let num_topics = self.alpha.len();
-        let vocab_size = self.beta_init.len();
         for k in 0..num_topics {
             print!("Topic {}:", k);
             let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
@@ -270,7 +267,6 @@ impl Model {
     // phi: KxV matrix
     fn print_topics_with_vocab(&self, vocab: &[String]) {
         let num_topics = self.alpha.len();
-        let vocab_size = self.beta_init.len();
         for k in 0..num_topics {
             print!("Topic {}:", k);
             let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
@@ -289,7 +285,6 @@ impl Model {
         where T: Display, F: FnMut(&usize) -> T
     {
         let num_topics = self.alpha.len();
-        let vocab_size = self.beta_init.len();
         for k in 0..num_topics {
             print!("Topic {}:", k);
             let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
@@ -340,7 +335,7 @@ fn lda(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, n
         nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
     }
-    for k in 0..num_topics {
+    for _k in 0..num_topics {
         phi.push(vec![0.0; vocab_size]);
         nkv.push(vec![0; vocab_size]);
         nk.push(0);
@@ -533,7 +528,7 @@ fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in
         nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
     }
-    for k in 0..num_topics {
+    for _k in 0..num_topics {
         phi.push(vec![0.0; vocab_size]);
         nkv.push(vec![0; vocab_size]);
         nk.push(0);
@@ -581,9 +576,9 @@ fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in
                 // Sample z_di
                 let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
                 for k in 0..num_topics {
-                    let E_theta_dk = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
-                    let E_phi_kv = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
-                    weights.push(E_theta_dk * E_phi_kv);
+                    let e_theta_dk = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
+                    let e_phi_kv = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
+                    weights.push(e_theta_dk * e_phi_kv);
                 }
                 // println!("{:?}", weights);
                 let cat = Categorical::new(weights);
@@ -682,12 +677,11 @@ fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in
 
 fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], beta: &[f64]) -> Vec<Bag> {
     let num_topics: usize = alpha.len();
-    let vocab_size: usize = beta.len();
     let mut rng = rand::thread_rng();
     // phi
     let dir_beta = Dirichlet::new(beta.to_vec());
     let mut phi: Vec<Vec<f64>> = Vec::with_capacity(num_topics);
-    for k in 0..num_topics {
+    for _k in 0..num_topics {
         // Sample phi_k
         phi.push(dir_beta.ind_sample(&mut rng));
     }
@@ -752,7 +746,7 @@ fn make_visual_dataset(size: usize, num_docs: usize) -> Vec<Bag> {
         theta.push(dir_alpha.ind_sample(&mut rng));
     }
     // nd
-    let mut nd: Vec<usize> = vec![127; num_docs];
+    let nd: Vec<usize> = vec![127; num_docs];
     // z, w
     let mut z: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     let mut w: Vec<Vec<usize>> = Vec::with_capacity(num_docs);
@@ -844,7 +838,7 @@ fn main() {
         let dataset = make_dataset(1000, f64::ln(400f64), 0.3, &alpha, &beta);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        let (dataset, vocab_size, _) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
@@ -854,7 +848,6 @@ fn main() {
     else if matches.is_present("test-visual-dataset") {
         let size = 5;
         let num_topics: usize = size + size;
-        let vocab_size: usize = size * size;
         write!(&mut std::io::stderr(), "Generating a dataset...").unwrap();
         let dataset = make_visual_dataset(size, 1000);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
@@ -873,7 +866,7 @@ fn main() {
         println!("beta = {:?}", model.beta);
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
-        let (dataset, vocab_size) = load_bags(input_fp).unwrap();
+        let (dataset, _) = load_bags(input_fp).unwrap();
         let vocab: Option<Vec<String>> = if let Some(vocab_fp) = matches.value_of("VOCAB") {
             Some(load_text_vocabulary(vocab_fp).unwrap())
         }
@@ -881,7 +874,7 @@ fn main() {
             None
         };
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        let (dataset, vocab_size, _) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         let num_topics = 20;
         let alpha: Vec<f64> = vec![0.1; num_topics];
