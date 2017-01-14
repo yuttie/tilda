@@ -779,18 +779,23 @@ fn make_visual_dataset(size: usize, num_docs: usize) -> Vec<Bag> {
     bags
 }
 
+/// This function guarantees that the order relation of any pair of word IDs in
+/// a given dataset are preserved also in an output dataset.
 fn compact_words(mut bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>) {
-    let mut id_map: HashMap<usize, usize> = HashMap::new();
-    for bag in &mut bags {
-        *bag = bag.into_iter().map(|(&id, &mut c)| {
-            let next_id = id_map.len();
-            let new_id: usize = *id_map.entry(id).or_insert(next_id);
-            (new_id, c)
-        }).collect();
+    // Find all used word IDs
+    let mut ids: Vec<usize> = Vec::new();
+    for bag in &bags {
+        ids.extend(bag.keys());
     }
-    let mut rev_id_map: HashMap<usize, usize> = HashMap::new();
-    for (k, v) in id_map {
-        rev_id_map.insert(v, k);
+    // Make word IDs in the list sorted and unique
+    ids.sort();
+    ids.dedup();
+    // Construct ID maps
+    let id_map: HashMap<usize, usize> = ids.iter().cloned().zip(0..).collect();
+    let rev_id_map: HashMap<usize, usize> = ids.into_iter().enumerate().collect();
+    // Map IDs
+    for bag in &mut bags {
+        *bag = bag.into_iter().map(|(id, &mut c)| (id_map[id], c)).collect();
     }
     (bags, rev_id_map.len(), rev_id_map)
 }
