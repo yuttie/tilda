@@ -1,4 +1,5 @@
 #![feature(proc_macro)]
+#[macro_use]
 extern crate clap;
 extern crate rand;
 #[macro_use]
@@ -12,7 +13,8 @@ use std::fs::{File};
 use std::path::{Path};
 use std::io::{self, BufReader, BufRead, Write};
 use std::f64;
-use std::fmt::Display;
+use std::fmt;
+use std::str::FromStr;
 
 use clap::{Arg, App, AppSettings};
 use rand::{Closed01, Rng};
@@ -233,7 +235,7 @@ impl Model {
 
     // phi^-1: VxK matrix
     fn print_term_topics_by<T, F>(&self, mut f: F)
-        where T: Display, F: FnMut(&usize) -> T
+        where T: fmt::Display, F: FnMut(&usize) -> T
     {
         let num_topics = self.alpha.len();
         let vocab_size = self.beta_init.len();
@@ -287,7 +289,7 @@ impl Model {
 
     // phi: KxV matrix
     fn print_topics_by<T, F>(&self, mut f: F)
-        where T: Display, F: FnMut(&usize) -> T
+        where T: fmt::Display, F: FnMut(&usize) -> T
     {
         let num_topics = self.alpha.len();
         for k in 0..num_topics {
@@ -304,7 +306,7 @@ impl Model {
     }
 }
 
-fn lda(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
+fn gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -497,7 +499,7 @@ fn lda(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, n
     }
 }
 
-fn lda_collapsed(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
+fn collapsed_gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -812,11 +814,45 @@ fn decompact_words(mut bags: Vec<Bag>, id_map: HashMap<usize, usize>) -> (Vec<Ba
     (bags, vocab_size)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Method {
+    Gibbs,
+    CollapsedGibbs,
+}
+
+impl FromStr for Method {
+    type Err = ParseMethodError;
+
+    fn from_str(s: &str) -> Result<Method, ParseMethodError> {
+        match s {
+            "gibbs"           => Ok(Method::Gibbs),
+            "collapsed-gibbs" => Ok(Method::CollapsedGibbs),
+            _                 => Err(ParseMethodError)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParseMethodError;
+
+impl fmt::Display for ParseMethodError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        "provided string was not `gibbs` or `collapsed-gibbs`".fmt(f)
+    }
+}
+
 fn main() {
     let matches = App::new("TiLDA")
         .version("0.1")
         .author("Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>")
         .about("Latent Dirichlet allocation implemented in Rust")
+        .arg(Arg::with_name("method")
+             .long("method")
+             .takes_value(true)
+             .value_name("METHOD")
+             .possible_values(&["gibbs", "collapsed-gibbs"])
+             .default_value("collapsed-gibbs")
+             .help("Specify a method to use"))
         .arg(Arg::with_name("test-dataset")
              .long("test-dataset")
              .help("Run with automatically generated dataset"))
@@ -839,6 +875,14 @@ fn main() {
         .setting(AppSettings::ArgRequiredElseHelp)
         .get_matches();
 
+    let learn = {
+        let method = value_t_or_exit!(matches, "method", Method);
+        match method {
+            Method::Gibbs          => gibbs,
+            Method::CollapsedGibbs => collapsed_gibbs,
+        }
+    };
+
     if matches.is_present("test-dataset") {
         let num_topics = 10;
         let vocab_size = 10000;
@@ -853,7 +897,7 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
+        let model = learn(&dataset, &alpha, &beta, 1000, 1000);
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
@@ -874,7 +918,7 @@ fn main() {
         let alpha: Vec<f64> = vec![1.0; num_topics];
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
-        let model = lda_collapsed(&dataset, &alpha, &beta, 200, 200);
+        let model = learn(&dataset, &alpha, &beta, 200, 200);
         model.print_term_topics_by(|id| rev_id_map[id]);
         model.print_topics_by(|id| rev_id_map[id]);
         println!("alpha = {:?}", model.alpha);
@@ -900,7 +944,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
+        let model = learn(&dataset, &alpha, &beta, 1000, 1000);
 
         match vocab {
             Some(vocab) => {
