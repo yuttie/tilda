@@ -903,6 +903,23 @@ fn main() {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn compact_preserves_order_of_ids() {
+        let num_topics = 4;
+        let vocab_size = 10000;
+        let alpha: Vec<f64> = vec![0.1; num_topics];
+        let beta: Vec<f64> = vec![0.1; vocab_size];
+        let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, &alpha, &beta);
+        let (_, _, rev_id_map) = ::compact_words(dataset);
+        let mut map_pairs: Vec<(usize, usize)> = rev_id_map.into_iter().collect();
+        map_pairs.sort();
+        assert!(map_pairs.windows(2).all(|w| {
+            let (new_id1, old_id1) = w[0];
+            let (new_id2, old_id2) = w[1];
+            new_id1 < new_id2 && old_id1 < old_id2
+        }));
+    }
+
+    #[test]
     fn compact_makes_dense_word_ids() {
         let num_topics = 4;
         let vocab_size = 10000;
