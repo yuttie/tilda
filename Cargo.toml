@@ -6,3 +6,6 @@ authors = ["Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>"]
 [dependencies]
 clap = "~2.19.0"
 rand = "0.3"
+serde = "0.8"
+serde_derive = "0.8"
+serde_json = "0.8"

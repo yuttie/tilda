@@ -1,5 +1,9 @@
+#![feature(proc_macro)]
 extern crate clap;
 extern crate rand;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 use std::string::String;
 use std::collections::HashMap;
@@ -183,6 +187,7 @@ fn digamma(x: f64) -> f64 {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 struct Model {
     alpha_init: Vec<f64>,
     beta_init: Vec<f64>,
@@ -818,6 +823,11 @@ fn main() {
         .arg(Arg::with_name("test-visual-dataset")
              .long("test-visual-dataset")
              .help("Run with automatically generated visual dataset"))
+        .arg(Arg::with_name("model")
+             .long("model")
+             .value_name("MODEL-FILE")
+             .help("Specify a model file")
+             .takes_value(true))
         .arg(Arg::with_name("INPUT")
              .help("Sets the input file to use")
              .required(false)
@@ -843,7 +853,12 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
+        let model = lda_collapsed(&dataset, &alpha, &beta, 1000, 1000);
+
+        if let Some(fp) = matches.value_of("model") {
+            let mut file = File::create(&fp).unwrap();
+            serde_json::to_writer_pretty(&mut file, &model).unwrap();
+        }
     }
     else if matches.is_present("test-visual-dataset") {
         let size = 5;
@@ -864,6 +879,11 @@ fn main() {
         model.print_topics_by(|id| rev_id_map[id]);
         println!("alpha = {:?}", model.alpha);
         println!("beta = {:?}", model.beta);
+
+        if let Some(fp) = matches.value_of("model") {
+            let mut file = File::create(&fp).unwrap();
+            serde_json::to_writer_pretty(&mut file, &model).unwrap();
+        }
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
         let (dataset, _) = load_bags(input_fp).unwrap();
@@ -891,6 +911,11 @@ fn main() {
                 model.print_term_topics();
                 model.print_topics();
             }
+        }
+
+        if let Some(fp) = matches.value_of("model") {
+            let mut file = File::create(&fp).unwrap();
+            serde_json::to_writer_pretty(&mut file, &model).unwrap();
         }
     };
 }
