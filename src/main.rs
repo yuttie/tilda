@@ -783,10 +783,7 @@ fn make_visual_dataset(size: usize, num_docs: usize) -> Vec<Bag> {
 /// a given dataset are preserved also in an output dataset.
 fn compact_words(mut bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>) {
     // Find all used word IDs
-    let mut ids: Vec<usize> = Vec::new();
-    for bag in &bags {
-        ids.extend(bag.keys());
-    }
+    let mut ids: Vec<usize> = bags.iter().flat_map(|bag| bag.keys()).cloned().collect();
     // Make word IDs in the list sorted and unique
     ids.sort();
     ids.dedup();
