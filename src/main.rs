@@ -846,6 +846,11 @@ fn main() {
         .version("0.1")
         .author("Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>")
         .about("Latent Dirichlet allocation implemented in Rust")
+        .arg(Arg::with_name("topics")
+             .long("topics")
+             .takes_value(true)
+             .value_name("NUMBER")
+             .help("Set the number of topics"))
         .arg(Arg::with_name("method")
              .long("method")
              .takes_value(true)
@@ -879,7 +884,8 @@ fn main() {
         .arg(Arg::with_name("INPUT")
              .help("Sets the input file to use")
              .required(false)
-             .index(1))
+             .index(1)
+             .requires("topics"))
         .arg(Arg::with_name("VOCAB")
              .help("Sets the input file to use")
              .required(false)
@@ -955,7 +961,7 @@ fn main() {
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
         let (dataset, vocab_size, _) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
-        let num_topics = 20;
+        let num_topics = value_t_or_exit!(matches, "topics", usize);
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
