@@ -913,12 +913,15 @@ fn main() {
         let dataset = make_dataset(1000, f64::ln(400f64), 0.3, &alpha, &beta);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, _) = compact_words(dataset);
+        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
         let model = learn(&dataset, &alpha, &beta, burn_in, samples);
+
+        model.print_term_topics_by(|id| rev_id_map[id]);
+        model.print_topics_by(|id| rev_id_map[id]);
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
@@ -959,7 +962,7 @@ fn main() {
             None
         };
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, _) = compact_words(dataset);
+        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         let num_topics = value_t_or_exit!(matches, "topics", usize);
         let alpha: Vec<f64> = vec![0.1; num_topics];
@@ -969,12 +972,12 @@ fn main() {
 
         match vocab {
             Some(vocab) => {
-                model.print_term_topics_with_vocab(&vocab);
-                model.print_topics_with_vocab(&vocab);
+                model.print_term_topics_by(|id| &vocab[rev_id_map[id]]);
+                model.print_topics_by(|id| &vocab[rev_id_map[id]]);
             },
             None => {
-                model.print_term_topics();
-                model.print_topics();
+                model.print_term_topics_by(|id| rev_id_map[id]);
+                model.print_topics_by(|id| rev_id_map[id]);
             }
         }
 
