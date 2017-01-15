@@ -907,6 +907,18 @@ fn main() {
              .value_name("NUMBER")
              .default_value("1000")
              .help("Set the number of samples"))
+        .arg(Arg::with_name("fix-alpha")
+             .long("fix-alpha")
+             .help("Don't update alpha"))
+        .arg(Arg::with_name("fix-beta")
+             .long("fix-beta")
+             .help("Don't update beta"))
+        .arg(Arg::with_name("symmetric-alpha")
+             .long("symmetric-alpha")
+             .help("Make alpha symmetric"))
+        .arg(Arg::with_name("symmetric-beta")
+             .long("symmetric-beta")
+             .help("Make beta symmetric"))
         .arg(Arg::with_name("test-dataset")
              .long("test-dataset")
              .help("Run with automatically generated dataset"))
@@ -955,7 +967,44 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
+        let alpha_init = {
+            if matches.is_present("symmetric-alpha") {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::SymmetricConstant(num_topics, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(num_topics, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; num_topics])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; num_topics])
+                }
+            }
+        };
+        let beta_init = {
+            if matches.is_present("symmetric-beta") {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::SymmetricConstant(vocab_size, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(vocab_size, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; vocab_size])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; vocab_size])
+                }
+            }
+        };
+
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
 
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
@@ -979,7 +1028,44 @@ fn main() {
         let alpha: Vec<f64> = vec![1.0; num_topics];
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
-        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
+        let alpha_init = {
+            if matches.is_present("symmetric-alpha") {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::SymmetricConstant(num_topics, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(num_topics, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; num_topics])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; num_topics])
+                }
+            }
+        };
+        let beta_init = {
+            if matches.is_present("symmetric-beta") {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::SymmetricConstant(vocab_size, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(vocab_size, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; vocab_size])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; vocab_size])
+                }
+            }
+        };
+
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
         println!("alpha = {:?}", model.alpha);
@@ -1005,7 +1091,44 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
+        let alpha_init = {
+            if matches.is_present("symmetric-alpha") {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::SymmetricConstant(num_topics, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(num_topics, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-alpha") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; num_topics])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; num_topics])
+                }
+            }
+        };
+        let beta_init = {
+            if matches.is_present("symmetric-beta") {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::SymmetricConstant(vocab_size, 1.0)
+                }
+                else {
+                    DirichletPrior::SymmetricVariable(vocab_size, 1.0)
+                }
+            }
+            else {
+                if matches.is_present("fix-beta") {
+                    DirichletPrior::AsymmetricConstant(vec![1.0; vocab_size])
+                }
+                else {
+                    DirichletPrior::AsymmetricVariable(vec![1.0; vocab_size])
+                }
+            }
+        };
+
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
 
         match vocab {
             Some(vocab) => {
