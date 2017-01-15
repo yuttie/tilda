@@ -292,7 +292,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let (mut alpha, alpha_is_symmetric, alpha_is_const): (Vec<f64>, bool, bool) = {
+    let (mut alpha, symmetric_alpha, constant_alpha): (Vec<f64>, bool, bool) = {
         match alpha_init {
             DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
             DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
@@ -300,7 +300,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
         }
     };
-    let (mut beta, beta_is_symmetric, beta_is_const): (Vec<f64>, bool, bool) = {
+    let (mut beta, symmetric_beta, constant_beta): (Vec<f64>, bool, bool) = {
         match beta_init {
             DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
             DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
@@ -428,7 +428,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             phi[k] = dir.ind_sample(&mut rng);
         }
         // Update alpha and beta
-        if !alpha_is_const {
+        if !constant_alpha {
             for k in 0..num_topics {
                 let mut x = -(num_docs as f64) * digamma(alpha[k]);
                 let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -438,14 +438,14 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 }
                 alpha[k] = alpha[k] * x / y;
             }
-            if alpha_is_symmetric {
+            if symmetric_alpha {
                 let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
                 for a in &mut alpha {
                     *a = a_sym;
                 }
             }
         }
-        if !beta_is_const {
+        if !constant_beta {
             for v in 0..vocab_size {
                 let mut x = -(num_topics as f64) * digamma(beta[v]);
                 let mut y = -(num_topics as f64) * digamma(beta_sum);
@@ -455,7 +455,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 }
                 beta[v] = beta[v] * x / y;
             }
-            if beta_is_symmetric {
+            if symmetric_beta {
                 let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
                 for b in &mut beta {
                     *b = b_sym;
@@ -515,7 +515,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let (mut alpha, alpha_is_symmetric, alpha_is_const): (Vec<f64>, bool, bool) = {
+    let (mut alpha, symmetric_alpha, constant_alpha): (Vec<f64>, bool, bool) = {
         match alpha_init {
             DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
             DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
@@ -523,7 +523,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
         }
     };
-    let (mut beta, beta_is_symmetric, beta_is_const): (Vec<f64>, bool, bool) = {
+    let (mut beta, symmetric_beta, constant_beta): (Vec<f64>, bool, bool) = {
         match beta_init {
             DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
             DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
@@ -640,7 +640,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             }
         }
         // Update alpha and beta
-        if !alpha_is_const {
+        if !constant_alpha {
             for k in 0..num_topics {
                 let mut x = -(num_docs as f64) * digamma(alpha[k]);
                 let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -650,14 +650,14 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 }
                 alpha[k] = alpha[k] * x / y;
             }
-            if alpha_is_symmetric {
+            if symmetric_alpha {
                 let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
                 for a in &mut alpha {
                     *a = a_sym;
                 }
             }
         }
-        if !beta_is_const {
+        if !constant_beta {
             for v in 0..vocab_size {
                 let mut x = -(num_topics as f64) * digamma(beta[v]);
                 let mut y = -(num_topics as f64) * digamma(beta_sum);
@@ -667,7 +667,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 }
                 beta[v] = beta[v] * x / y;
             }
-            if beta_is_symmetric {
+            if symmetric_beta {
                 let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
                 for b in &mut beta {
                     *b = b_sym;
