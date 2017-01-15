@@ -64,6 +64,8 @@ struct Categorical {
 
 impl Categorical {
     fn new(mut weights: Vec<f64>) -> Categorical {
+        assert!(weights.iter().all(|&w| w >= 0.0), "Categorical::new() called with weights containing negative value(s)");
+
         let sum: f64 = weights.iter().sum();
         for w in &mut weights {
             *w /= sum;
@@ -105,6 +107,8 @@ struct Dirichlet {
 
 impl Dirichlet {
     fn new(alpha: Vec<f64>) -> Dirichlet {
+        assert!(alpha.iter().all(|&a| a > 0.0), "Dirichlet::new() called with alpha containing non-positive value(s)");
+
         Dirichlet {
             alpha: alpha,
         }
