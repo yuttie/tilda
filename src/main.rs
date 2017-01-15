@@ -750,12 +750,12 @@ fn compact_words(mut bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>)
     ids.dedup();
     // Construct ID maps
     let id_map: HashMap<usize, usize> = ids.iter().cloned().zip(0..).collect();
-    let rev_id_map: HashMap<usize, usize> = ids.into_iter().enumerate().collect();
+    let inv_id_map: HashMap<usize, usize> = ids.into_iter().enumerate().collect();
     // Map IDs
     for bag in &mut bags {
         *bag = bag.into_iter().map(|(id, &mut c)| (id_map[id], c)).collect();
     }
-    (bags, rev_id_map.len(), rev_id_map)
+    (bags, inv_id_map.len(), inv_id_map)
 }
 
 fn decompact_words(mut bags: Vec<Bag>, id_map: HashMap<usize, usize>) -> (Vec<Bag>, usize) {
@@ -871,15 +871,15 @@ fn main() {
         let dataset = make_dataset(1000, f64::ln(400f64), 0.3, &alpha, &beta);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        let (dataset, vocab_size, inv_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
         let model = learn(&dataset, &alpha, &beta, burn_in, samples);
 
-        model.print_term_topics_by(|id| rev_id_map[id]);
-        model.print_topics_by(|id| rev_id_map[id]);
+        model.print_term_topics_by(|id| inv_id_map[id]);
+        model.print_topics_by(|id| inv_id_map[id]);
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
@@ -893,7 +893,7 @@ fn main() {
         let dataset = make_visual_dataset(size, 1000);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        let (dataset, vocab_size, inv_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
 
@@ -901,8 +901,8 @@ fn main() {
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
         let model = learn(&dataset, &alpha, &beta, burn_in, samples);
-        model.print_term_topics_by(|id| rev_id_map[id]);
-        model.print_topics_by(|id| rev_id_map[id]);
+        model.print_term_topics_by(|id| inv_id_map[id]);
+        model.print_topics_by(|id| inv_id_map[id]);
         println!("alpha = {:?}", model.alpha);
         println!("beta = {:?}", model.beta);
 
@@ -920,7 +920,7 @@ fn main() {
             None
         };
         write!(&mut std::io::stderr(), "Compacting the dataset...").unwrap();
-        let (dataset, vocab_size, rev_id_map) = compact_words(dataset);
+        let (dataset, vocab_size, inv_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         let num_topics = value_t_or_exit!(matches, "topics", usize);
         let alpha: Vec<f64> = vec![0.1; num_topics];
@@ -930,12 +930,12 @@ fn main() {
 
         match vocab {
             Some(vocab) => {
-                model.print_term_topics_by(|id| &vocab[rev_id_map[id]]);
-                model.print_topics_by(|id| &vocab[rev_id_map[id]]);
+                model.print_term_topics_by(|id| &vocab[inv_id_map[id]]);
+                model.print_topics_by(|id| &vocab[inv_id_map[id]]);
             },
             None => {
-                model.print_term_topics_by(|id| rev_id_map[id]);
-                model.print_topics_by(|id| rev_id_map[id]);
+                model.print_term_topics_by(|id| inv_id_map[id]);
+                model.print_topics_by(|id| inv_id_map[id]);
             }
         }
 
@@ -955,8 +955,8 @@ mod tests {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
         let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, &alpha, &beta);
-        let (_, _, rev_id_map) = ::compact_words(dataset);
-        let mut map_pairs: Vec<(usize, usize)> = rev_id_map.into_iter().collect();
+        let (_, _, inv_id_map) = ::compact_words(dataset);
+        let mut map_pairs: Vec<(usize, usize)> = inv_id_map.into_iter().collect();
         map_pairs.sort();
         assert!(map_pairs.windows(2).all(|w| {
             let (new_id1, old_id1) = w[0];
@@ -983,8 +983,8 @@ mod tests {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
         let dataset = ::make_dataset(10, f64::ln(10f64), 0.01, &alpha, &beta);
-        let (compacted_dataset, _, rev_id_map) = ::compact_words(dataset.clone());
-        let (decompacted_dataset, _) = ::decompact_words(compacted_dataset, rev_id_map);
+        let (compacted_dataset, _, inv_id_map) = ::compact_words(dataset.clone());
+        let (decompacted_dataset, _) = ::decompact_words(compacted_dataset, inv_id_map);
         assert_eq!(decompacted_dataset, dataset);
     }
 }
