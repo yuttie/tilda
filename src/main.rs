@@ -191,8 +191,8 @@ fn digamma(x: f64) -> f64 {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Model {
-    alpha_init: Vec<f64>,
-    beta_init: Vec<f64>,
+    alpha_init: DirichletPrior,
+    beta_init: DirichletPrior,
     burn_in: usize,
     num_samples: usize,
     alpha: Vec<f64>,
@@ -264,13 +264,46 @@ impl Model {
     }
 }
 
-fn gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
+#[derive(Serialize, Deserialize, Debug)]
+enum DirichletPrior {
+    SymmetricConstant(usize, f64),
+    SymmetricVariable(usize, f64),
+    AsymmetricConstant(Vec<f64>),
+    AsymmetricVariable(Vec<f64>),
+}
+
+impl DirichletPrior {
+    fn len(&self) -> usize {
+        match self {
+            &DirichletPrior::SymmetricConstant(size, _) => size,
+            &DirichletPrior::SymmetricVariable(size, _) => size,
+            &DirichletPrior::AsymmetricConstant(ref params) => params.len(),
+            &DirichletPrior::AsymmetricVariable(ref params) => params.len(),
+        }
+    }
+}
+
+fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha_init.to_vec();
-    let mut beta = beta_init.to_vec();
+    let (mut alpha, alpha_is_symmetric, alpha_is_const): (Vec<f64>, bool, bool) = {
+        match alpha_init {
+            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
+            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
+            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+        }
+    };
+    let (mut beta, beta_is_symmetric, beta_is_const): (Vec<f64>, bool, bool) = {
+        match beta_init {
+            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
+            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
+            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+        }
+    };
     println!("K = {}", num_topics);
     println!("M = {}", num_docs);
     println!("V = {}", vocab_size);
@@ -391,23 +424,39 @@ fn gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize,
             phi[k] = dir.ind_sample(&mut rng);
         }
         // Update alpha and beta
-        for k in 0..num_topics {
-            let mut x = -(num_docs as f64) * digamma(alpha[k]);
-            let mut y = -(num_docs as f64) * digamma(alpha_sum);
-            for d in 0..num_docs {
-                x += digamma(ndk[d][k] as f64 + alpha[k]);
-                y += digamma(nd[d] as f64 + alpha_sum);
-            }
-            alpha[k] = alpha[k] * x / y;
-        }
-        for v in 0..vocab_size {
-            let mut x = -(num_topics as f64) * digamma(beta[v]);
-            let mut y = -(num_topics as f64) * digamma(beta_sum);
+        if !alpha_is_const {
             for k in 0..num_topics {
-                x += digamma(nkv[k][v] as f64 + beta[v]);
-                y += digamma(nk[k] as f64 + beta_sum);
+                let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                for d in 0..num_docs {
+                    x += digamma(ndk[d][k] as f64 + alpha[k]);
+                    y += digamma(nd[d] as f64 + alpha_sum);
+                }
+                alpha[k] = alpha[k] * x / y;
             }
-            beta[v] = beta[v] * x / y;
+            if alpha_is_symmetric {
+                let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
+                for a in &mut alpha {
+                    *a = a_sym;
+                }
+            }
+        }
+        if !beta_is_const {
+            for v in 0..vocab_size {
+                let mut x = -(num_topics as f64) * digamma(beta[v]);
+                let mut y = -(num_topics as f64) * digamma(beta_sum);
+                for k in 0..num_topics {
+                    x += digamma(nkv[k][v] as f64 + beta[v]);
+                    y += digamma(nk[k] as f64 + beta_sum);
+                }
+                beta[v] = beta[v] * x / y;
+            }
+            if beta_is_symmetric {
+                let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
+                for b in &mut beta {
+                    *b = b_sym;
+                }
+            }
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
@@ -445,8 +494,8 @@ fn gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize,
     }
 
     Model {
-        alpha_init:  alpha_init.to_vec(),
-        beta_init:   beta_init.to_vec(),
+        alpha_init:  alpha_init,
+        beta_init:   beta_init,
         burn_in:     burn_in,
         num_samples: num_samples,
         alpha:       alpha,
@@ -457,13 +506,27 @@ fn gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize,
     }
 }
 
-fn collapsed_gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_in: usize, num_samples: usize) -> Model {
+fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let mut alpha = alpha_init.to_vec();
-    let mut beta = beta_init.to_vec();
+    let (mut alpha, alpha_is_symmetric, alpha_is_const): (Vec<f64>, bool, bool) = {
+        match alpha_init {
+            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
+            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
+            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+        }
+    };
+    let (mut beta, beta_is_symmetric, beta_is_const): (Vec<f64>, bool, bool) = {
+        match beta_init {
+            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
+            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
+            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+        }
+    };
     // println!("K = {}", num_topics);
     // println!("M = {}", num_docs);
     // println!("V = {}", vocab_size);
@@ -573,23 +636,39 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_
             }
         }
         // Update alpha and beta
-        for k in 0..num_topics {
-            let mut x = -(num_docs as f64) * digamma(alpha[k]);
-            let mut y = -(num_docs as f64) * digamma(alpha_sum);
-            for d in 0..num_docs {
-                x += digamma(ndk[d][k] as f64 + alpha[k]);
-                y += digamma(nd[d] as f64 + alpha_sum);
-            }
-            alpha[k] = alpha[k] * x / y;
-        }
-        for v in 0..vocab_size {
-            let mut x = -(num_topics as f64) * digamma(beta[v]);
-            let mut y = -(num_topics as f64) * digamma(beta_sum);
+        if !alpha_is_const {
             for k in 0..num_topics {
-                x += digamma(nkv[k][v] as f64 + beta[v]);
-                y += digamma(nk[k] as f64 + beta_sum);
+                let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                for d in 0..num_docs {
+                    x += digamma(ndk[d][k] as f64 + alpha[k]);
+                    y += digamma(nd[d] as f64 + alpha_sum);
+                }
+                alpha[k] = alpha[k] * x / y;
             }
-            beta[v] = beta[v] * x / y;
+            if alpha_is_symmetric {
+                let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
+                for a in &mut alpha {
+                    *a = a_sym;
+                }
+            }
+        }
+        if !beta_is_const {
+            for v in 0..vocab_size {
+                let mut x = -(num_topics as f64) * digamma(beta[v]);
+                let mut y = -(num_topics as f64) * digamma(beta_sum);
+                for k in 0..num_topics {
+                    x += digamma(nkv[k][v] as f64 + beta[v]);
+                    y += digamma(nk[k] as f64 + beta_sum);
+                }
+                beta[v] = beta[v] * x / y;
+            }
+            if beta_is_symmetric {
+                let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
+                for b in &mut beta {
+                    *b = b_sym;
+                }
+            }
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
@@ -628,8 +707,8 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: &[f64], beta_init: &[f64], burn_
     }
 
     Model {
-        alpha_init:  alpha_init.to_vec(),
-        beta_init:   beta_init.to_vec(),
+        alpha_init:  alpha_init,
+        beta_init:   beta_init,
         burn_in:     burn_in,
         num_samples: num_samples,
         alpha:       alpha,
@@ -876,7 +955,7 @@ fn main() {
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
+        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
 
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
@@ -900,7 +979,7 @@ fn main() {
         let alpha: Vec<f64> = vec![1.0; num_topics];
         let beta: Vec<f64> = vec![1.0; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
+        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
         println!("alpha = {:?}", model.alpha);
@@ -926,7 +1005,7 @@ fn main() {
         let alpha: Vec<f64> = vec![0.1; num_topics];
         let beta: Vec<f64> = vec![0.1; vocab_size];
 
-        let model = learn(&dataset, &alpha, &beta, burn_in, samples);
+        let model = learn(&dataset, DirichletPrior::AsymmetricVariable(alpha), DirichletPrior::AsymmetricVariable(beta), burn_in, samples);
 
         match vocab {
             Some(vocab) => {
