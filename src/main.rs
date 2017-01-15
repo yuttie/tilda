@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::vec::Vec;
 use std::fs::{File};
 use std::path::{Path};
-use std::io::{self, BufReader, BufRead, Write};
+use std::io::{self, BufReader, BufRead, BufWriter, Write};
 use std::f64;
 use std::fmt;
 use std::str::FromStr;
@@ -1015,6 +1015,7 @@ fn main() {
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
+            let mut file = BufWriter::new(file);
             serde_json::to_writer_pretty(&mut file, &model).unwrap();
         }
     }
@@ -1077,6 +1078,7 @@ fn main() {
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
+            let mut file = BufWriter::new(file);
             serde_json::to_writer_pretty(&mut file, &model).unwrap();
         }
     }
@@ -1147,6 +1149,7 @@ fn main() {
 
         if let Some(fp) = matches.value_of("model") {
             let mut file = File::create(&fp).unwrap();
+            let mut file = BufWriter::new(file);
             serde_json::to_writer_pretty(&mut file, &model).unwrap();
         }
     };
