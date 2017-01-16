@@ -237,7 +237,18 @@ impl Model {
 
     // theta: MxK matrix
     fn print_doc_topics(&self) {
-        unimplemented!();
+        let num_docs = self.theta.len();
+        for d in 0..num_docs {
+            print!("Document {}:", d);
+            let mut doctopic_vec: Vec<_> = self.theta[d].iter().enumerate().collect();
+            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+            for (k, &prob) in doctopic_vec {
+                if prob > 1e-6 {
+                    print!(" {}*{}", prob, k);
+                }
+            }
+            println!("");
+        }
     }
 
     // phi: KxV matrix
@@ -1011,6 +1022,7 @@ fn main() {
 
         let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
 
+        model.print_doc_topics();
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
 
@@ -1072,6 +1084,7 @@ fn main() {
         };
 
         let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
+        model.print_doc_topics();
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
         println!("alpha = {:?}", model.alpha);
@@ -1137,6 +1150,7 @@ fn main() {
 
         let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
 
+        model.print_doc_topics();
         match vocab {
             Some(vocab) => {
                 model.print_term_topics_by(|id| &vocab[inv_id_map[id]]);
