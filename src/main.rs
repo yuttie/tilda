@@ -124,7 +124,7 @@ impl Sample<Vec<f64>> for Dirichlet {
 impl IndependentSample<Vec<f64>> for Dirichlet {
     fn ind_sample<R: Rng>(&self, rng: &mut R) -> Vec<f64> {
         let mut sum = 0.0;
-        let mut xs = Vec::new();
+        let mut xs = Vec::with_capacity(self.alpha.len());
         for &a in &self.alpha {
             let gamma = Gamma::new(a, 1.0);
             let y = gamma.ind_sample(rng);
@@ -755,7 +755,7 @@ fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], b
         w.push(w_d);
     }
     // Make bags
-    let mut bags: Vec<Bag> = Vec::new();
+    let mut bags: Vec<Bag> = Vec::with_capacity(w.len());
     for w_d in w {
         let mut bag: Bag = Bag::new();
         for v in w_d {
@@ -811,7 +811,7 @@ fn make_visual_dataset(size: usize, num_docs: usize) -> Vec<Bag> {
         w.push(w_d);
     }
     // Make bags
-    let mut bags: Vec<Bag> = Vec::new();
+    let mut bags: Vec<Bag> = Vec::with_capacity(w.len());
     for w_d in w {
         let mut bag: Bag = Bag::new();
         for v in w_d {
