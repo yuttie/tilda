@@ -1,6 +1,8 @@
 #![feature(proc_macro)]
 #[macro_use]
 extern crate clap;
+#[macro_use]
+extern crate ndarray;
 extern crate rand;
 #[macro_use]
 extern crate serde_derive;
@@ -17,6 +19,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use clap::{Arg, App, AppSettings};
+use ndarray::{Array1, Array2};
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
 
@@ -200,10 +203,10 @@ struct Model {
     beta_init: DirichletPrior,
     burn_in: usize,
     num_samples: usize,
-    alpha: Vec<f64>,
-    beta: Vec<f64>,
-    theta: Vec<Vec<f64>>,
-    phi:   Vec<Vec<f64>>,
+    alpha: Array1<f64>,
+    beta:  Array1<f64>,
+    theta: Array2<f64>,
+    phi:   Array2<f64>,
     z_samples: Vec<Vec<Vec<usize>>>,
 }
 
@@ -227,7 +230,7 @@ impl Model {
         for v in 0..vocab_size {
             print!("{}:", f(&v));
             for k in 0..num_topics {
-                print!(" {}*{}", self.phi[k][v], k);
+                print!(" {}*{}", self.phi[[k, v]], k);
             }
             println!("");
         }
@@ -238,9 +241,9 @@ impl Model {
         let num_docs = self.theta.len();
         for d in 0..num_docs {
             print!("Document {}:", d);
-            let mut doctopic_vec: Vec<_> = self.theta[d].iter().enumerate().collect();
-            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-            for (k, &prob) in doctopic_vec {
+            let mut doctopic_vec: Vec<_> = self.theta.row(d).iter().cloned().enumerate().collect();
+            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (k, prob) in doctopic_vec {
                 print!(" {}*{}", prob, k);
             }
             println!("");
@@ -264,9 +267,9 @@ impl Model {
         let num_topics = self.alpha.len();
         for k in 0..num_topics {
             print!("Topic {}:", k);
-            let mut topicword_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
-            topicword_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-            for (v, &prob) in topicword_vec {
+            let mut topicword_vec: Vec<_> = self.phi.row(k).iter().cloned().enumerate().collect();
+            topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (v, prob) in topicword_vec {
                 print!(" {}*{}", prob, f(&v));
             }
             println!("");
@@ -298,20 +301,20 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let (mut alpha, symmetric_alpha, constant_alpha): (Vec<f64>, bool, bool) = {
+    let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
         match alpha_init {
-            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
-            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
-            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
-    let (mut beta, symmetric_beta, constant_beta): (Vec<f64>, bool, bool) = {
+    let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
         match beta_init {
-            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
-            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
-            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     println!("K = {}", num_topics);
@@ -323,12 +326,12 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     // Construct zero-filled nested arrays
     let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut theta: Vec<Vec<f64>>   = Vec::with_capacity(num_docs);
-    let mut phi:   Vec<Vec<f64>>   = Vec::with_capacity(num_topics);
-    let mut ndk:   Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut nkv:   Vec<Vec<usize>> = Vec::with_capacity(num_topics);
-    let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
-    let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
+    let mut theta: Array2<f64>     = Array2::zeros((num_docs, num_topics));
+    let mut phi:   Array2<f64>     = Array2::zeros((num_topics, vocab_size));
+    let mut ndk:   Array2<usize>   = Array2::zeros((num_docs, num_topics));
+    let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
+    let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
+    let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
     for bag in dataset {
         // n_d
@@ -338,15 +341,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         }
         w.push(vec![0; n_d]);
         z.push(vec![0; n_d]);
-        theta.push(vec![0.0; num_topics]);
-        ndk.push(vec![0; num_topics]);
-        nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
-    }
-    for _k in 0..num_topics {
-        phi.push(vec![0.0; vocab_size]);
-        nkv.push(vec![0; vocab_size]);
-        nk.push(0);
     }
 
     // Initialize w, z, ndk and nkv
@@ -358,8 +353,8 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 w[d][i] = v;
                 let k = among_topics.ind_sample(&mut rng);
                 z[d][i] = k;
-                ndk[d][k] += 1;
-                nkv[k][v] += 1;
+                ndk[[d, k]] += 1;
+                nkv[[k, v]] += 1;
                 nd[d] += 1;
                 nk[k] += 1;
                 i += 1;
@@ -368,15 +363,15 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     }
     // Initialize theta, phi
     {
-        let dir_a = Dirichlet::new(alpha.clone());
+        let dir_a = Dirichlet::new(alpha.iter().cloned().collect());
         for d in 0..num_docs {
-            theta[d] = dir_a.ind_sample(&mut rng);
+            theta.row_mut(d).assign(&Array1::from_vec(dir_a.ind_sample(&mut rng)));
         }
     }
     {
-        let dir_b = Dirichlet::new(beta.clone());
+        let dir_b = Dirichlet::new(beta.iter().cloned().collect());
         for k in 0..num_topics {
-            phi[k] = dir_b.ind_sample(&mut rng);
+            phi.row_mut(k).assign(&Array1::from_vec(dir_b.ind_sample(&mut rng)));
         }
     }
 
@@ -399,7 +394,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 // Sample z_di
                 let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
                 for k in 0..num_topics {
-                    weights.push(theta[d][k] * phi[k][v]);
+                    weights.push(theta[[d, k]] * phi[[k, v]]);
                 }
                 let cat = Categorical::new(weights);
                 let old_z_di = z[d][i];
@@ -409,29 +404,29 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                     z_samples[d][i][new_z_di] += 1;
                 }
                 // Update ndk and nkv
-                ndk[d][old_z_di] -= 1;
-                ndk[d][new_z_di] += 1;
-                nkv[old_z_di][v] -= 1;
-                nkv[new_z_di][v] += 1;
+                ndk[[d, old_z_di]] -= 1;
+                ndk[[d, new_z_di]] += 1;
+                nkv[[old_z_di, v]] -= 1;
+                nkv[[new_z_di, v]] += 1;
                 nk[old_z_di] -= 1;
                 nk[new_z_di] += 1;
             }
             // Sample theta_d
             let mut alpha_d: Vec<f64> = Vec::with_capacity(num_topics);
             for k in 0..num_topics {
-                alpha_d.push(ndk[d][k] as f64 + alpha[k]);
+                alpha_d.push(ndk[[d, k]] as f64 + alpha[k]);
             }
             let dir = Dirichlet::new(alpha_d);
-            theta[d] = dir.ind_sample(&mut rng);
+            theta.row_mut(d).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
         }
         for k in 0..num_topics {
             // Sample phi_k
             let mut beta_k: Vec<f64> = Vec::with_capacity(vocab_size);
             for v in 0..vocab_size {
-                beta_k.push(nkv[k][v] as f64 + beta[v]);
+                beta_k.push(nkv[[k, v]] as f64 + beta[v]);
             }
             let dir = Dirichlet::new(beta_k);
-            phi[k] = dir.ind_sample(&mut rng);
+            phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
         }
         // Update alpha and beta
         if !constant_alpha {
@@ -439,7 +434,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 let mut x = -(num_docs as f64) * digamma(alpha[k]);
                 let mut y = -(num_docs as f64) * digamma(alpha_sum);
                 for d in 0..num_docs {
-                    x += digamma(ndk[d][k] as f64 + alpha[k]);
+                    x += digamma(ndk[[d, k]] as f64 + alpha[k]);
                     y += digamma(nd[d] as f64 + alpha_sum);
                 }
                 alpha[k] = alpha[k] * x / y;
@@ -456,7 +451,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 let mut x = -(num_topics as f64) * digamma(beta[v]);
                 let mut y = -(num_topics as f64) * digamma(beta_sum);
                 for k in 0..num_topics {
-                    x += digamma(nkv[k][v] as f64 + beta[v]);
+                    x += digamma(nkv[[k, v]] as f64 + beta[v]);
                     y += digamma(nk[k] as f64 + beta_sum);
                 }
                 beta[v] = beta[v] * x / y;
@@ -472,7 +467,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         let mut log_likelihood = 0.0;
         for k in 0..num_topics {
             for v in 0..vocab_size {
-                log_likelihood += nkv[k][v] as f64 * f64::ln(phi[k][v]);
+                log_likelihood += nkv[[k, v]] as f64 * f64::ln(phi[[k, v]]);
             }
         }
         println!("log_likelihood = {}", log_likelihood);
@@ -521,20 +516,20 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
-    let (mut alpha, symmetric_alpha, constant_alpha): (Vec<f64>, bool, bool) = {
+    let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
         match alpha_init {
-            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
-            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
-            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
-    let (mut beta, symmetric_beta, constant_beta): (Vec<f64>, bool, bool) = {
+    let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
         match beta_init {
-            DirichletPrior::SymmetricConstant(size, param) => (vec![param; size], true, true),
-            DirichletPrior::SymmetricVariable(size, param) => (vec![param; size], true, false),
-            DirichletPrior::AsymmetricConstant(ref params) => (params.clone(), false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (params.clone(), false, false),
+            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     // println!("K = {}", num_topics);
@@ -546,12 +541,12 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     // Construct zero-filled nested arrays
     let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
     let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut theta: Vec<Vec<f64>>   = Vec::with_capacity(num_docs);
-    let mut phi:   Vec<Vec<f64>>   = Vec::with_capacity(num_topics);
-    let mut ndk:   Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut nkv:   Vec<Vec<usize>> = Vec::with_capacity(num_topics);
-    let mut nd:    Vec<usize>      = Vec::with_capacity(num_docs);
-    let mut nk:    Vec<usize>      = Vec::with_capacity(num_topics);
+    let mut theta: Array2<f64>     = Array2::zeros((num_docs, num_topics));
+    let mut phi:   Array2<f64>     = Array2::zeros((num_topics, vocab_size));
+    let mut ndk:   Array2<usize>   = Array2::zeros((num_docs, num_topics));
+    let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
+    let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
+    let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
     for bag in dataset {
         // n_d
@@ -561,15 +556,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         }
         w.push(vec![0; n_d]);
         z.push(vec![0; n_d]);
-        theta.push(vec![0.0; num_topics]);
-        ndk.push(vec![0; num_topics]);
-        nd.push(0);
         z_samples.push(vec![vec![0; num_topics]; n_d]);
-    }
-    for _k in 0..num_topics {
-        phi.push(vec![0.0; vocab_size]);
-        nkv.push(vec![0; vocab_size]);
-        nk.push(0);
     }
 
     // Initialize w, z, ndk and nkv
@@ -581,8 +568,8 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 w[d][i] = v;
                 let k = among_topics.ind_sample(&mut rng);
                 z[d][i] = k;
-                ndk[d][k] += 1;
-                nkv[k][v] += 1;
+                ndk[[d, k]] += 1;
+                nkv[[k, v]] += 1;
                 nd[d] += 1;
                 nk[k] += 1;
                 i += 1;
@@ -607,23 +594,23 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 let v = w_di;
                 //
                 let old_z_di = z[d][i];
-                ndk[d][old_z_di] -= 1;
-                nkv[old_z_di][v] -= 1;
+                ndk[[d, old_z_di]] -= 1;
+                nkv[[old_z_di, v]] -= 1;
                 nd[d] -= 1;
                 nk[old_z_di] -= 1;
                 // Sample z_di
                 let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
                 for k in 0..num_topics {
-                    let e_theta_dk = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
-                    let e_phi_kv = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
+                    let e_theta_dk = (ndk[[d, k]] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
+                    let e_phi_kv = (nkv[[k, v]] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
                     weights.push(e_theta_dk * e_phi_kv);
                 }
                 // println!("{:?}", weights);
                 let cat = Categorical::new(weights);
                 let new_z_di = cat.ind_sample(&mut rng);
                 z[d][i] = new_z_di;
-                ndk[d][new_z_di] += 1;
-                nkv[new_z_di][v] += 1;
+                ndk[[d, new_z_di]] += 1;
+                nkv[[new_z_di, v]] += 1;
                 nd[d] += 1;
                 nk[new_z_di] += 1;
                 // Save the sample
@@ -637,12 +624,12 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         // Infer phi and theta
         for d in 0..num_docs {
             for k in 0..num_topics {
-                theta[d][k] = (ndk[d][k] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
+                theta[[d, k]] = (ndk[[d, k]] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
             }
         }
         for k in 0..num_topics {
             for v in 0..vocab_size {
-                phi[k][v] = (nkv[k][v] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
+                phi[[k, v]] = (nkv[[k, v]] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
             }
         }
         // Update alpha and beta
@@ -651,7 +638,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 let mut x = -(num_docs as f64) * digamma(alpha[k]);
                 let mut y = -(num_docs as f64) * digamma(alpha_sum);
                 for d in 0..num_docs {
-                    x += digamma(ndk[d][k] as f64 + alpha[k]);
+                    x += digamma(ndk[[d, k]] as f64 + alpha[k]);
                     y += digamma(nd[d] as f64 + alpha_sum);
                 }
                 alpha[k] = alpha[k] * x / y;
@@ -668,7 +655,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 let mut x = -(num_topics as f64) * digamma(beta[v]);
                 let mut y = -(num_topics as f64) * digamma(beta_sum);
                 for k in 0..num_topics {
-                    x += digamma(nkv[k][v] as f64 + beta[v]);
+                    x += digamma(nkv[[k, v]] as f64 + beta[v]);
                     y += digamma(nk[k] as f64 + beta_sum);
                 }
                 beta[v] = beta[v] * x / y;
@@ -684,7 +671,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         let mut log_likelihood = 0.0;
         for k in 0..num_topics {
             for v in 0..vocab_size {
-                log_likelihood += nkv[k][v] as f64 * f64::ln(phi[k][v]);
+                log_likelihood += nkv[[k, v]] as f64 * f64::ln(phi[[k, v]]);
             }
         }
         // println!("log_likelihood = {}", log_likelihood);
