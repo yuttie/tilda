@@ -148,6 +148,7 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
 // https://github.com/lawrennd/gca/blob/master/matlab/digamma.m
 // http://d.hatena.ne.jp/echizen_tm/20100627/1277646468
 fn digamma(x: f64) -> f64 {
+    use f64::consts::PI;
     const S:  f64 = 1e-6;
     const C:  f64 = 12.0;
     const S3: f64 = 1.0 / 12.0;
@@ -156,7 +157,7 @@ fn digamma(x: f64) -> f64 {
     const S6: f64 = 1.0 / 240.0;
     const S7: f64 = 1.0 / 132.0;
     const DIGAMMA1: f64 = -0.5772156649015328606065120;
-    const TRIGAMMA1: f64 = f64::consts::PI * f64::consts::PI / 6.0;
+    const TRIGAMMA1: f64 = PI * PI / 6.0;
 
     if x == f64::NEG_INFINITY || f64::is_nan(x) {
         f64::NAN
@@ -168,7 +169,7 @@ fn digamma(x: f64) -> f64 {
     else if x < 0.0 {
         // x is negative non-integer
         // Use a reflection formula: psi(1 - x) - psi(x) = pi * cot(pi * x)
-        digamma(1.0 - x) + f64::consts::PI / f64::tan(-f64::consts::PI * x)
+        digamma(1.0 - x) + PI / f64::tan(-PI * x)
     }
     else {
         // x is a positive real number
