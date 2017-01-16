@@ -264,9 +264,9 @@ impl Model {
         let num_topics = self.alpha.len();
         for k in 0..num_topics {
             print!("Topic {}:", k);
-            let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
-            topic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-            for (v, &prob) in topic_vec {
+            let mut topicword_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
+            topicword_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+            for (v, &prob) in topicword_vec {
                 print!(" {}*{}", prob, f(&v));
             }
             println!("");
