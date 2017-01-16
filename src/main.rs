@@ -227,9 +227,7 @@ impl Model {
         for v in 0..vocab_size {
             print!("{}:", f(&v));
             for k in 0..num_topics {
-                if self.phi[k][v] > 1e-9 {
-                    print!(" {}*{}", self.phi[k][v], k);
-                }
+                print!(" {}*{}", self.phi[k][v], k);
             }
             println!("");
         }
@@ -243,9 +241,7 @@ impl Model {
             let mut doctopic_vec: Vec<_> = self.theta[d].iter().enumerate().collect();
             doctopic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
             for (k, &prob) in doctopic_vec {
-                if prob > 1e-6 {
-                    print!(" {}*{}", prob, k);
-                }
+                print!(" {}*{}", prob, k);
             }
             println!("");
         }
@@ -271,9 +267,7 @@ impl Model {
             let mut topic_vec: Vec<_> = self.phi[k].iter().enumerate().collect();
             topic_vec.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
             for (v, &prob) in topic_vec {
-                if prob > 1e-6 {
-                    print!(" {}*{}", prob, f(&v));
-                }
+                print!(" {}*{}", prob, f(&v));
             }
             println!("");
         }
