@@ -238,7 +238,7 @@ impl Model {
 
     // theta: MxK matrix
     fn print_doc_topics(&self) {
-        let num_docs = self.theta.len();
+        let num_docs = self.theta.rows();
         for d in 0..num_docs {
             print!("Document {}:", d);
             let mut doctopic_vec: Vec<_> = self.theta.row(d).iter().cloned().enumerate().collect();
