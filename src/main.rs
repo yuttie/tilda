@@ -927,15 +927,16 @@ fn main() {
              .value_name("MODEL-FILE")
              .help("Specify a model file")
              .takes_value(true))
+        .arg(Arg::with_name("vocab")
+             .long("vocab")
+             .takes_value(true)
+             .value_name("FILE")
+             .help("Sets a vocabulary file to use"))
         .arg(Arg::with_name("INPUT")
              .help("Sets the input file to use")
              .required(false)
              .index(1)
              .requires("topics"))
-        .arg(Arg::with_name("VOCAB")
-             .help("Sets the input file to use")
-             .required(false)
-             .index(2))
         .setting(AppSettings::ArgRequiredElseHelp)
         .get_matches();
 
@@ -1079,7 +1080,7 @@ fn main() {
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
         let (dataset, _) = load_bags(input_fp).unwrap();
-        let vocab: Option<Vec<String>> = if let Some(vocab_fp) = matches.value_of("VOCAB") {
+        let vocab: Option<Vec<String>> = if let Some(vocab_fp) = matches.value_of("vocab") {
             Some(load_text_vocabulary(vocab_fp).unwrap())
         }
         else {
