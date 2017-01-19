@@ -288,11 +288,11 @@ enum DirichletPrior {
 impl DirichletPrior {
     fn len(&self) -> usize {
         use DirichletPrior::*;
-        match self {
-            &SymmetricConstant(size, _) => size,
-            &SymmetricVariable(size, _) => size,
-            &AsymmetricConstant(ref params) => params.len(),
-            &AsymmetricVariable(ref params) => params.len(),
+        match *self {
+            SymmetricConstant(size, _) => size,
+            SymmetricVariable(size, _) => size,
+            AsymmetricConstant(ref params) => params.len(),
+            AsymmetricVariable(ref params) => params.len(),
         }
     }
 }
