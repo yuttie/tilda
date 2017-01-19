@@ -287,11 +287,12 @@ enum DirichletPrior {
 
 impl DirichletPrior {
     fn len(&self) -> usize {
+        use DirichletPrior::*;
         match self {
-            &DirichletPrior::SymmetricConstant(size, _) => size,
-            &DirichletPrior::SymmetricVariable(size, _) => size,
-            &DirichletPrior::AsymmetricConstant(ref params) => params.len(),
-            &DirichletPrior::AsymmetricVariable(ref params) => params.len(),
+            &SymmetricConstant(size, _) => size,
+            &SymmetricVariable(size, _) => size,
+            &AsymmetricConstant(ref params) => params.len(),
+            &AsymmetricVariable(ref params) => params.len(),
         }
     }
 }
@@ -302,19 +303,21 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
     let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
+        use DirichletPrior::*;
         match alpha_init {
-            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
+        use DirichletPrior::*;
         match beta_init {
-            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     println!("K = {}", num_topics);
@@ -517,19 +520,21 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let vocab_size: usize = beta_init.len();
     let mut rng = rand::thread_rng();
     let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
+        use DirichletPrior::*;
         match alpha_init {
-            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
+        use DirichletPrior::*;
         match beta_init {
-            DirichletPrior::SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            DirichletPrior::SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            DirichletPrior::AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            DirichletPrior::AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
         }
     };
     // println!("K = {}", num_topics);
