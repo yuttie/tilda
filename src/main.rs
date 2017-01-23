@@ -389,8 +389,8 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples) {
-        let alpha_sum: f64 = alpha.iter().sum();
-        let beta_sum: f64 = beta.iter().sum();
+        let alpha_sum: f64 = alpha.scalar_sum();
+        let beta_sum: f64 = beta.scalar_sum();
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -443,7 +443,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 alpha[k] = alpha[k] * x / y;
             }
             if symmetric_alpha {
-                let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
+                let a_sym = alpha.scalar_sum() / alpha.len() as f64;
                 for a in &mut alpha {
                     *a = a_sym;
                 }
@@ -460,7 +460,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 beta[v] = beta[v] * x / y;
             }
             if symmetric_beta {
-                let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
+                let b_sym = beta.scalar_sum() / beta.len() as f64;
                 for b in &mut beta {
                     *b = b_sym;
                 }
@@ -592,8 +592,8 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples) {
         // println!("s = {}", s);
-        let alpha_sum: f64 = alpha.iter().sum();
-        let beta_sum: f64 = beta.iter().sum();
+        let alpha_sum: f64 = alpha.scalar_sum();
+        let beta_sum: f64 = beta.scalar_sum();
         for (d, w_d) in w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -649,7 +649,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 alpha[k] = alpha[k] * x / y;
             }
             if symmetric_alpha {
-                let a_sym = alpha.iter().sum::<f64>() / alpha.len() as f64;
+                let a_sym = alpha.scalar_sum() / alpha.len() as f64;
                 for a in &mut alpha {
                     *a = a_sym;
                 }
@@ -666,7 +666,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 beta[v] = beta[v] * x / y;
             }
             if symmetric_beta {
-                let b_sym = beta.iter().sum::<f64>() / beta.len() as f64;
+                let b_sym = beta.scalar_sum() / beta.len() as f64;
                 for b in &mut beta {
                     *b = b_sym;
                 }
