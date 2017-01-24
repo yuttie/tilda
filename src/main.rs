@@ -217,6 +217,7 @@ struct Model {
     beta_init: DirichletPrior,
     burn_in: usize,
     num_samples: usize,
+    lag: usize,
     alpha: Array1<f64>,
     beta:  Array1<f64>,
     theta: Array2<f64>,
@@ -318,7 +319,7 @@ impl DirichletPrior {
     }
 }
 
-fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize) -> Model {
+fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -410,7 +411,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
 
     // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
-    for s in 0..(burn_in + num_samples) {
+    for s in 0..(burn_in + num_samples * lag) {
         let alpha_sum: f64 = alpha.scalar_sum();
         let beta_sum: f64 = beta.scalar_sum();
         for (d, w_d) in w.iter().enumerate() {
@@ -425,7 +426,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 let old_z_di = z[d][i];
                 let new_z_di = cat.ind_sample(&mut rng);
                 z[d][i] = new_z_di;
-                if s >= burn_in {
+                if s >= burn_in && (s - burn_in + 1) % lag == 0 {
                     z_samples[d][i][new_z_di] += 1;
                 }
                 // Update ndk and nkv
@@ -488,7 +489,8 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 }
             }
         }
-        if s >= burn_in {
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
@@ -497,7 +499,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
             }
-            log_likelihood_samples[s - burn_in] = log_likelihood;
+            log_likelihood_samples[i_sample] = log_likelihood;
             println!("log_likelihood = {}", log_likelihood);
         }
         if s < burn_in {
@@ -507,7 +509,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             if s == burn_in {
                 writeln!(&mut std::io::stderr(), "").unwrap();
             }
-            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples).unwrap();
+            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples * lag).unwrap();
         }
     }
     writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
@@ -532,6 +534,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         beta_init:   beta_init,
         burn_in:     burn_in,
         num_samples: num_samples,
+        lag:         lag,
         alpha:       alpha,
         beta:        beta,
         theta:       theta,
@@ -541,7 +544,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     }
 }
 
-fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize) -> Model {
+fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
     let vocab_size: usize = beta_init.len();
@@ -618,7 +621,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
 
     // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
-    for s in 0..(burn_in + num_samples) {
+    for s in 0..(burn_in + num_samples * lag) {
         // println!("s = {}", s);
         let alpha_sum: f64 = alpha.scalar_sum();
         let beta_sum: f64 = beta.scalar_sum();
@@ -647,7 +650,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 nd[d] += 1;
                 nk[new_z_di] += 1;
                 // Save the sample
-                if s >= burn_in {
+                if s >= burn_in && (s - burn_in + 1) % lag == 0 {
                     z_samples[d][i][new_z_di] += 1;
                 }
             }
@@ -700,7 +703,8 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 }
             }
         }
-        if s >= burn_in {
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
@@ -709,7 +713,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
             }
-            log_likelihood_samples[s - burn_in] = log_likelihood;
+            log_likelihood_samples[i_sample] = log_likelihood;
             println!("{} {}", s, log_likelihood);
         }
         // println!("log_likelihood = {}", log_likelihood);
@@ -720,7 +724,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             if s == burn_in {
                 writeln!(&mut std::io::stderr(), "").unwrap();
             }
-            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples).unwrap();
+            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples * lag).unwrap();
         }
     }
     writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
@@ -745,6 +749,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         beta_init:   beta_init,
         burn_in:     burn_in,
         num_samples: num_samples,
+        lag:         lag,
         alpha:       alpha,
         beta:        beta,
         theta:       theta,
@@ -942,6 +947,12 @@ fn main() {
              .value_name("NUMBER")
              .default_value("1000")
              .help("Set the number of samples"))
+        .arg(Arg::with_name("lag")
+             .long("lag")
+             .takes_value(true)
+             .value_name("NUMBER")
+             .default_value("100")
+             .help("Set lag for sampling"))
         .arg(Arg::with_name("fix-alpha")
              .long("fix-alpha")
              .help("Don't update alpha"))
@@ -988,6 +999,7 @@ fn main() {
 
     let burn_in = value_t_or_exit!(matches, "burn-in", usize);
     let samples = value_t_or_exit!(matches, "samples", usize);
+    let lag = value_t_or_exit!(matches, "lag", usize);
 
     if matches.is_present("test-dataset") {
         let num_topics = 10;
@@ -1040,7 +1052,7 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
         model.print_doc_topics();
         model.print_term_topics_by(|id| inv_id_map[id]);
@@ -1103,7 +1115,7 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
         model.print_doc_topics();
         model.print_term_topics_by(|id| inv_id_map[id]);
         model.print_topics_by(|id| inv_id_map[id]);
@@ -1168,7 +1180,7 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples);
+        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
         model.print_doc_topics();
         match vocab {
