@@ -222,7 +222,7 @@ struct Model {
     theta: Array2<f64>,
     phi:   Array2<f64>,
     z_samples: Vec<Vec<Vec<usize>>>,
-    log_likelihood_samples: Vec<f64>,
+    log_likelihood_samples: Array1<f64>,
 }
 
 impl Model {
@@ -351,7 +351,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    let mut log_likelihood_samples: Vec<f64> = Vec::with_capacity(num_samples);
+    let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -491,7 +491,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
             }
-            log_likelihood_samples.push(log_likelihood);
+            log_likelihood_samples[s - burn_in] = log_likelihood;
             println!("log_likelihood = {}", log_likelihood);
         }
         if s < burn_in {
@@ -574,7 +574,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    let mut log_likelihood_samples: Vec<f64> = Vec::with_capacity(num_samples);
+    let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -703,7 +703,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
             }
-            log_likelihood_samples.push(log_likelihood);
+            log_likelihood_samples[s - burn_in] = log_likelihood;
             println!("{} {}", s, log_likelihood);
         }
         // println!("log_likelihood = {}", log_likelihood);
