@@ -222,6 +222,7 @@ struct Model {
     theta: Array2<f64>,
     phi:   Array2<f64>,
     z_samples: Vec<Vec<Vec<usize>>>,
+    log_likelihood_samples: Vec<f64>,
 }
 
 impl Model {
@@ -350,6 +351,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+    let mut log_likelihood_samples: Vec<f64> = Vec::with_capacity(num_samples);
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -480,15 +482,18 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
                 }
             }
         }
-        // Evaluate the log-likelihood value for the current parameters
-        let mut log_likelihood = 0.0;
-        log_likelihood += num_topics as f64 *
-            (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-        for k in 0..num_topics {
-            log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
+        if s >= burn_in {
+            // Evaluate the log-likelihood value for the current parameters
+            let mut log_likelihood = 0.0;
+            log_likelihood += num_topics as f64 *
+                (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
+            for k in 0..num_topics {
+                log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                    - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
+            }
+            log_likelihood_samples.push(log_likelihood);
+            println!("log_likelihood = {}", log_likelihood);
         }
-        println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
             write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
         }
@@ -526,6 +531,7 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         theta:       theta,
         phi:         phi,
         z_samples:   z_samples,
+        log_likelihood_samples: log_likelihood_samples,
     }
 }
 
@@ -568,6 +574,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+    let mut log_likelihood_samples: Vec<f64> = Vec::with_capacity(num_samples);
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -687,13 +694,17 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 }
             }
         }
-        // Evaluate the log-likelihood value for the current parameters
-        let mut log_likelihood = 0.0;
-        log_likelihood += num_topics as f64 *
-            (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-        for k in 0..num_topics {
-            log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
+        if s >= burn_in {
+            // Evaluate the log-likelihood value for the current parameters
+            let mut log_likelihood = 0.0;
+            log_likelihood += num_topics as f64 *
+                (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
+            for k in 0..num_topics {
+                log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                    - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
+            }
+            log_likelihood_samples.push(log_likelihood);
+            println!("{} {}", s, log_likelihood);
         }
         // println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
@@ -705,7 +716,6 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             }
             write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples).unwrap();
         }
-        println!("{} {}", s, log_likelihood);
     }
     writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
 
@@ -734,6 +744,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         theta:       theta,
         phi:         phi,
         z_samples:   z_samples,
+        log_likelihood_samples: log_likelihood_samples,
     }
 }
 
