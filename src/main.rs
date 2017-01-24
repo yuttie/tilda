@@ -290,6 +290,12 @@ impl Model {
             println!("");
         }
     }
+
+    /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
+    fn marginal_likelihood(&self) -> f64 {
+        let samples = &self.log_likelihood_samples;
+        samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
