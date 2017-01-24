@@ -1,6 +1,7 @@
 #![feature(proc_macro)]
 #[macro_use]
 extern crate clap;
+extern crate libc;
 #[macro_use]
 extern crate ndarray;
 extern crate rand;
@@ -138,6 +139,19 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
             *x /= sum;
         }
         xs
+    }
+}
+
+mod cmath {
+    use libc::c_double;
+
+    #[link(name = "m")]
+    extern {
+        fn lgamma(x: c_double) -> c_double;
+    }
+
+    pub fn lngamma(x: f64) -> f64 {
+        unsafe { lgamma(x as f64) }
     }
 }
 
@@ -468,10 +482,11 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
+        log_likelihood += num_topics as f64 *
+            (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
         for k in 0..num_topics {
-            for v in 0..vocab_size {
-                log_likelihood += nkv[[k, v]] as f64 * f64::ln(phi[[k, v]]);
-            }
+            log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
         }
         println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
@@ -674,10 +689,11 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         }
         // Evaluate the log-likelihood value for the current parameters
         let mut log_likelihood = 0.0;
+        log_likelihood += num_topics as f64 *
+            (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
         for k in 0..num_topics {
-            for v in 0..vocab_size {
-                log_likelihood += nkv[[k, v]] as f64 * f64::ln(phi[[k, v]]);
-            }
+            log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
         }
         // println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
