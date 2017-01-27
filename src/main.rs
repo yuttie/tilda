@@ -20,7 +20,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use clap::{Arg, App, AppSettings};
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Array3, Axis};
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
 
@@ -357,8 +357,18 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
+    // The same for samples
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+    let mut theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
+    let mut phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
+    let mut alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
+    let mut beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
+    let mut ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
+    let mut nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
+    let mut nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
+    let mut nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
     let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
+
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -491,6 +501,23 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
         }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
+            // Store samples
+            let mut phi_s = phi_samples.subview_mut(Axis(0), i_sample);
+            let mut theta_s = theta_samples.subview_mut(Axis(0), i_sample);
+            let mut alpha_s = alpha_samples.subview_mut(Axis(0), i_sample);
+            let mut beta_s = beta_samples.subview_mut(Axis(0), i_sample);
+            let mut ndk_s = ndk_samples.subview_mut(Axis(0), i_sample);
+            let mut nkv_s = nkv_samples.subview_mut(Axis(0), i_sample);
+            let mut nd_s = nd_samples.subview_mut(Axis(0), i_sample);
+            let mut nk_s = nk_samples.subview_mut(Axis(0), i_sample);
+            phi_s.assign(&phi);
+            theta_s.assign(&theta);
+            alpha_s.assign(&alpha);
+            beta_s.assign(&beta);
+            ndk_s.assign(&ndk);
+            nkv_s.assign(&nkv);
+            nd_s.assign(&nd);
+            nk_s.assign(&nk);
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
@@ -582,8 +609,18 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
     let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
     let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
+    // The same for samples
     let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+    let mut theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
+    let mut phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
+    let mut alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
+    let mut beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
+    let mut ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
+    let mut nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
+    let mut nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
+    let mut nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
     let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
+
     for bag in dataset {
         // n_d
         let mut n_d = 0;
@@ -705,6 +742,23 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
         }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
+            // Store samples
+            let mut phi_s = phi_samples.subview_mut(Axis(0), i_sample);
+            let mut theta_s = theta_samples.subview_mut(Axis(0), i_sample);
+            let mut alpha_s = alpha_samples.subview_mut(Axis(0), i_sample);
+            let mut beta_s = beta_samples.subview_mut(Axis(0), i_sample);
+            let mut ndk_s = ndk_samples.subview_mut(Axis(0), i_sample);
+            let mut nkv_s = nkv_samples.subview_mut(Axis(0), i_sample);
+            let mut nd_s = nd_samples.subview_mut(Axis(0), i_sample);
+            let mut nk_s = nk_samples.subview_mut(Axis(0), i_sample);
+            phi_s.assign(&phi);
+            theta_s.assign(&theta);
+            alpha_s.assign(&alpha);
+            beta_s.assign(&beta);
+            ndk_s.assign(&ndk);
+            nkv_s.assign(&nkv);
+            nd_s.assign(&nd);
+            nk_s.assign(&nk);
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
