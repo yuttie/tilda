@@ -465,37 +465,44 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
         }
         // Update alpha and beta
-        if !constant_alpha {
-            for k in 0..num_topics {
-                let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                for d in 0..num_docs {
-                    x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                    y += digamma(nd[d] as f64 + alpha_sum);
-                }
-                alpha[k] = alpha[k] * x / y;
-            }
-            if symmetric_alpha {
-                let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                for a in &mut alpha {
-                    *a = a_sym;
-                }
-            }
-        }
-        if !constant_beta {
-            for v in 0..vocab_size {
-                let mut x = -(num_topics as f64) * digamma(beta[v]);
-                let mut y = -(num_topics as f64) * digamma(beta_sum);
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
+            if !constant_alpha {
+                let ndk = ndk_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nd = nd_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
                 for k in 0..num_topics {
-                    x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                    y += digamma(nk[k] as f64 + beta_sum);
+                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                    for d in 0..num_docs {
+                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
+                        y += digamma(nd[d] as f64 + alpha_sum);
+                    }
+                    alpha[k] = alpha[k] * x / y;
                 }
-                beta[v] = beta[v] * x / y;
+                if symmetric_alpha {
+                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
+                    for a in &mut alpha {
+                        *a = a_sym;
+                    }
+                }
             }
-            if symmetric_beta {
-                let b_sym = beta.scalar_sum() / beta.len() as f64;
-                for b in &mut beta {
-                    *b = b_sym;
+            if !constant_beta {
+                let nkv = nkv_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nk = nk_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for v in 0..vocab_size {
+                    let mut x = -(num_topics as f64) * digamma(beta[v]);
+                    let mut y = -(num_topics as f64) * digamma(beta_sum);
+                    for k in 0..num_topics {
+                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
+                        y += digamma(nk[k] as f64 + beta_sum);
+                    }
+                    beta[v] = beta[v] * x / y;
+                }
+                if symmetric_beta {
+                    let b_sym = beta.scalar_sum() / beta.len() as f64;
+                    for b in &mut beta {
+                        *b = b_sym;
+                    }
                 }
             }
         }
@@ -706,37 +713,44 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             }
         }
         // Update alpha and beta
-        if !constant_alpha {
-            for k in 0..num_topics {
-                let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                for d in 0..num_docs {
-                    x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                    y += digamma(nd[d] as f64 + alpha_sum);
-                }
-                alpha[k] = alpha[k] * x / y;
-            }
-            if symmetric_alpha {
-                let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                for a in &mut alpha {
-                    *a = a_sym;
-                }
-            }
-        }
-        if !constant_beta {
-            for v in 0..vocab_size {
-                let mut x = -(num_topics as f64) * digamma(beta[v]);
-                let mut y = -(num_topics as f64) * digamma(beta_sum);
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
+            if !constant_alpha {
+                let ndk = ndk_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nd = nd_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
                 for k in 0..num_topics {
-                    x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                    y += digamma(nk[k] as f64 + beta_sum);
+                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                    for d in 0..num_docs {
+                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
+                        y += digamma(nd[d] as f64 + alpha_sum);
+                    }
+                    alpha[k] = alpha[k] * x / y;
                 }
-                beta[v] = beta[v] * x / y;
+                if symmetric_alpha {
+                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
+                    for a in &mut alpha {
+                        *a = a_sym;
+                    }
+                }
             }
-            if symmetric_beta {
-                let b_sym = beta.scalar_sum() / beta.len() as f64;
-                for b in &mut beta {
-                    *b = b_sym;
+            if !constant_beta {
+                let nkv = nkv_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nk = nk_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for v in 0..vocab_size {
+                    let mut x = -(num_topics as f64) * digamma(beta[v]);
+                    let mut y = -(num_topics as f64) * digamma(beta_sum);
+                    for k in 0..num_topics {
+                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
+                        y += digamma(nk[k] as f64 + beta_sum);
+                    }
+                    beta[v] = beta[v] * x / y;
+                }
+                if symmetric_beta {
+                    let b_sym = beta.scalar_sum() / beta.len() as f64;
+                    for b in &mut beta {
+                        *b = b_sym;
+                    }
                 }
             }
         }
