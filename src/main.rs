@@ -464,48 +464,6 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             let dir = Dirichlet::new(beta_k);
             phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
         }
-        // Update alpha and beta
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            if !constant_alpha {
-                let ndk = ndk_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = nd_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    alpha[k] = alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                    for a in &mut alpha {
-                        *a = a_sym;
-                    }
-                }
-            }
-            if !constant_beta {
-                let nkv = nkv_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = nk_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    beta[v] = beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = beta.scalar_sum() / beta.len() as f64;
-                    for b in &mut beta {
-                        *b = b_sym;
-                    }
-                }
-            }
-        }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
             // Store samples
@@ -535,6 +493,48 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
             }
             log_likelihood_samples[i_sample] = log_likelihood;
             println!("log_likelihood = {}", log_likelihood);
+        }
+        // Update alpha and beta
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
+            if !constant_alpha {
+                let ndk = ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nd = nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for k in 0..num_topics {
+                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                    for d in 0..num_docs {
+                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
+                        y += digamma(nd[d] as f64 + alpha_sum);
+                    }
+                    alpha[k] = alpha[k] * x / y;
+                }
+                if symmetric_alpha {
+                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
+                    for a in &mut alpha {
+                        *a = a_sym;
+                    }
+                }
+            }
+            if !constant_beta {
+                let nkv = nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nk = nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for v in 0..vocab_size {
+                    let mut x = -(num_topics as f64) * digamma(beta[v]);
+                    let mut y = -(num_topics as f64) * digamma(beta_sum);
+                    for k in 0..num_topics {
+                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
+                        y += digamma(nk[k] as f64 + beta_sum);
+                    }
+                    beta[v] = beta[v] * x / y;
+                }
+                if symmetric_beta {
+                    let b_sym = beta.scalar_sum() / beta.len() as f64;
+                    for b in &mut beta {
+                        *b = b_sym;
+                    }
+                }
+            }
         }
         if s < burn_in {
             write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
@@ -712,48 +712,6 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
                 phi[[k, v]] = (nkv[[k, v]] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
             }
         }
-        // Update alpha and beta
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            if !constant_alpha {
-                let ndk = ndk_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = nd_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    alpha[k] = alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                    for a in &mut alpha {
-                        *a = a_sym;
-                    }
-                }
-            }
-            if !constant_beta {
-                let nkv = nkv_samples.slice(s![0..i_sample as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = nk_samples.slice(s![0..i_sample as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    beta[v] = beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = beta.scalar_sum() / beta.len() as f64;
-                    for b in &mut beta {
-                        *b = b_sym;
-                    }
-                }
-            }
-        }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
             // Store samples
@@ -783,6 +741,49 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
             }
             log_likelihood_samples[i_sample] = log_likelihood;
             println!("{} {}", s, log_likelihood);
+        }
+        // Update alpha and beta
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
+            if !constant_alpha {
+                // BUG: thread 'main' panicked at 'assertion failed: index < dim', /home/yuta/.cargo/registry/src/github.com-1ecc6299db9ec823/ndarray-0.7.2/src/dimension/mod.rs:210
+                let ndk = ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nd = nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for k in 0..num_topics {
+                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
+                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                    for d in 0..num_docs {
+                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
+                        y += digamma(nd[d] as f64 + alpha_sum);
+                    }
+                    alpha[k] = alpha[k] * x / y;
+                }
+                if symmetric_alpha {
+                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
+                    for a in &mut alpha {
+                        *a = a_sym;
+                    }
+                }
+            }
+            if !constant_beta {
+                let nkv = nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nk = nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for v in 0..vocab_size {
+                    let mut x = -(num_topics as f64) * digamma(beta[v]);
+                    let mut y = -(num_topics as f64) * digamma(beta_sum);
+                    for k in 0..num_topics {
+                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
+                        y += digamma(nk[k] as f64 + beta_sum);
+                    }
+                    beta[v] = beta[v] * x / y;
+                }
+                if symmetric_beta {
+                    let b_sym = beta.scalar_sum() / beta.len() as f64;
+                    for b in &mut beta {
+                        *b = b_sym;
+                    }
+                }
+            }
         }
         // println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
