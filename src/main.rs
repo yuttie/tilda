@@ -1,4 +1,3 @@
-#![feature(proc_macro)]
 #[macro_use]
 extern crate clap;
 extern crate libc;
