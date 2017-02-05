@@ -485,6 +485,142 @@ impl GibbsSampler {
     }
 }
 
+impl SamplingSolver for GibbsSampler {
+    fn sample(&mut self, sample_index: Option<usize>) {
+        let num_docs: usize = self.w.len();
+        let num_topics: usize = self.alpha_init.len();
+        let vocab_size: usize = self.beta_init.len();
+        let mut rng = rand::thread_rng();
+        let (symmetric_alpha, constant_alpha) = {
+            use DirichletPrior::*;
+            match self.alpha_init {
+                SymmetricConstant(size, param) => (true,  true),
+                SymmetricVariable(size, param) => (true,  false),
+                AsymmetricConstant(ref params) => (false, true),
+                AsymmetricVariable(ref params) => (false, false),
+            }
+        };
+        let (symmetric_beta, constant_beta) = {
+            use DirichletPrior::*;
+            match self.beta_init {
+                SymmetricConstant(size, param) => (true,  true),
+                SymmetricVariable(size, param) => (true,  false),
+                AsymmetricConstant(ref params) => (false, true),
+                AsymmetricVariable(ref params) => (false, false),
+            }
+        };
+
+        let alpha_sum: f64 = self.alpha.scalar_sum();
+        let beta_sum: f64 = self.beta.scalar_sum();
+        for (d, w_d) in self.w.iter().enumerate() {
+            for (i, &w_di) in w_d.iter().enumerate() {
+                let v = w_di;
+                // Sample z_di
+                let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
+                for k in 0..num_topics {
+                    weights.push(self.theta[[d, k]] * self.phi[[k, v]]);
+                }
+                let cat = Categorical::new(weights);
+                let old_z_di = self.z[d][i];
+                let new_z_di = cat.ind_sample(&mut rng);
+                self.z[d][i] = new_z_di;
+                // Update ndk and nkv
+                self.ndk[[d, old_z_di]] -= 1;
+                self.ndk[[d, new_z_di]] += 1;
+                self.nkv[[old_z_di, v]] -= 1;
+                self.nkv[[new_z_di, v]] += 1;
+                self.nk[old_z_di] -= 1;
+                self.nk[new_z_di] += 1;
+            }
+            // Sample theta_d
+            let mut alpha_d: Vec<f64> = Vec::with_capacity(num_topics);
+            for k in 0..num_topics {
+                alpha_d.push(self.ndk[[d, k]] as f64 + self.alpha[k]);
+            }
+            let dir = Dirichlet::new(alpha_d);
+            self.theta.row_mut(d).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
+        }
+        for k in 0..num_topics {
+            // Sample phi_k
+            let mut beta_k: Vec<f64> = Vec::with_capacity(vocab_size);
+            for v in 0..vocab_size {
+                beta_k.push(self.nkv[[k, v]] as f64 + self.beta[v]);
+            }
+            let dir = Dirichlet::new(beta_k);
+            self.phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
+        }
+        if let Some(i_sample) = sample_index {
+            // Store samples
+            {
+                let mut phi_s   = self.phi_samples.subview_mut(Axis(0), i_sample);
+                let mut theta_s = self.theta_samples.subview_mut(Axis(0), i_sample);
+                let mut alpha_s = self.alpha_samples.subview_mut(Axis(0), i_sample);
+                let mut beta_s  = self.beta_samples.subview_mut(Axis(0), i_sample);
+                let mut ndk_s   = self.ndk_samples.subview_mut(Axis(0), i_sample);
+                let mut nkv_s   = self.nkv_samples.subview_mut(Axis(0), i_sample);
+                let mut nd_s    = self.nd_samples.subview_mut(Axis(0), i_sample);
+                let mut nk_s    = self.nk_samples.subview_mut(Axis(0), i_sample);
+                phi_s.assign(&self.phi);
+                theta_s.assign(&self.theta);
+                alpha_s.assign(&self.alpha);
+                beta_s.assign(&self.beta);
+                ndk_s.assign(&self.ndk);
+                nkv_s.assign(&self.nkv);
+                nd_s.assign(&self.nd);
+                nk_s.assign(&self.nk);
+            }
+            // Evaluate the log-likelihood value for the current parameters
+            let mut log_likelihood = 0.0;
+            log_likelihood += num_topics as f64 *
+                (cmath::lngamma(self.beta.scalar_sum()) - self.beta.map(|&b| cmath::lngamma(b)).scalar_sum());
+            for k in 0..num_topics {
+                log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                    - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
+            }
+            self.log_likelihood_samples[i_sample] = log_likelihood;
+            // Update alpha and beta
+            if !constant_alpha {
+                let ndk = self.ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nd = self.nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for k in 0..num_topics {
+                    let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
+                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
+                    for d in 0..num_docs {
+                        x += digamma(ndk[[d, k]] as f64 + self.alpha[k]);
+                        y += digamma(nd[d] as f64 + alpha_sum);
+                    }
+                    self.alpha[k] = self.alpha[k] * x / y;
+                }
+                if symmetric_alpha {
+                    let a_sym = self.alpha.scalar_sum() / self.alpha.len() as f64;
+                    for a in &mut self.alpha {
+                        *a = a_sym;
+                    }
+                }
+            }
+            if !constant_beta {
+                let nkv = self.nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
+                let nk = self.nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                for v in 0..vocab_size {
+                    let mut x = -(num_topics as f64) * digamma(self.beta[v]);
+                    let mut y = -(num_topics as f64) * digamma(beta_sum);
+                    for k in 0..num_topics {
+                        x += digamma(nkv[[k, v]] as f64 + self.beta[v]);
+                        y += digamma(nk[k] as f64 + beta_sum);
+                    }
+                    self.beta[v] = self.beta[v] * x / y;
+                }
+                if symmetric_beta {
+                    let b_sym = self.beta.scalar_sum() / self.beta.len() as f64;
+                    for b in &mut self.beta {
+                        *b = b_sym;
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
