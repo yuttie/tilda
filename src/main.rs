@@ -298,6 +298,27 @@ impl Model {
     }
 }
 
+trait LDAModel {
+    // phi^-1: VxK matrix
+    fn print_term_topics(&self);
+    // phi^-1: VxK matrix
+    fn print_term_topics_with_vocab(&self, vocab: &[String]);
+    // phi^-1: VxK matrix
+    fn print_term_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T;
+    // theta: MxK matrix
+    fn print_doc_topics(&self);
+    // phi: KxV matrix
+    fn print_topics(&self);
+    // phi: KxV matrix
+    fn print_topics_with_vocab(&self, vocab: &[String]);
+    // phi: KxV matrix
+    fn print_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T;
+    /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
+    fn marginal_likelihood(&self) -> f64;
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 enum DirichletPrior {
     SymmetricConstant(usize, f64),
