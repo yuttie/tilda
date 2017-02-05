@@ -339,6 +339,10 @@ impl DirichletPrior {
     }
 }
 
+trait SamplingSolver {
+    fn sample(&mut self, sample_index: Option<usize>);
+}
+
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
