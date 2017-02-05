@@ -343,6 +343,148 @@ trait SamplingSolver {
     fn sample(&mut self, sample_index: Option<usize>);
 }
 
+struct GibbsSampler {
+    alpha_init: DirichletPrior,
+    beta_init: DirichletPrior,
+    w:     Vec<Vec<usize>>,
+    z:     Vec<Vec<usize>>,
+    alpha: Array1<f64>,
+    beta:  Array1<f64>,
+    theta: Array2<f64>,
+    phi:   Array2<f64>,
+    ndk:   Array2<usize>,
+    nkv:   Array2<usize>,
+    nd:    Array1<usize>,
+    nk:    Array1<usize>,
+    // Samples
+    z_samples: Vec<Vec<Vec<usize>>>,
+    theta_samples: Array3<f64>,
+    phi_samples:   Array3<f64>,
+    alpha_samples: Array2<f64>,
+    beta_samples:  Array2<f64>,
+    ndk_samples:   Array3<usize>,
+    nkv_samples:   Array3<usize>,
+    nd_samples:    Array2<usize>,
+    nk_samples:    Array2<usize>,
+    log_likelihood_samples: Array1<f64>,
+}
+
+impl GibbsSampler {
+    pub fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> GibbsSampler {
+        let num_docs: usize = dataset.len();
+        let num_topics: usize = alpha_init.len();
+        let vocab_size: usize = beta_init.len();
+        let mut rng = rand::thread_rng();
+        let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
+            use DirichletPrior::*;
+            match alpha_init {
+                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            }
+        };
+        let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
+            use DirichletPrior::*;
+            match beta_init {
+                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
+                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
+                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
+                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+            }
+        };
+
+        // Construct zero-filled nested arrays
+        let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+        let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
+        let mut theta: Array2<f64>     = Array2::zeros((num_docs, num_topics));
+        let mut phi:   Array2<f64>     = Array2::zeros((num_topics, vocab_size));
+        let mut ndk:   Array2<usize>   = Array2::zeros((num_docs, num_topics));
+        let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
+        let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
+        let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
+        // The same for samples
+        let num_samples = 0;
+        let z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
+        let theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
+        let phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
+        let alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
+        let beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
+        let ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
+        let nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
+        let nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
+        let nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
+        let log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
+
+        for bag in dataset {
+            // n_d
+            let mut n_d = 0;
+            for &count in bag.values() {
+                n_d += count;
+            }
+            w.push(vec![0; n_d]);
+            z.push(vec![0; n_d]);
+            // z_samples.push(vec![vec![0; num_topics]; n_d]);
+        }
+
+        // Initialize w, z, ndk and nkv
+        let among_topics = Range::new(0, num_topics);
+        for (d, bag) in dataset.iter().enumerate() {
+            let mut i = 0;
+            for (&v, &count) in bag {
+                for _ in 0..count {
+                    w[d][i] = v;
+                    let k = among_topics.ind_sample(&mut rng);
+                    z[d][i] = k;
+                    ndk[[d, k]] += 1;
+                    nkv[[k, v]] += 1;
+                    nd[d] += 1;
+                    nk[k] += 1;
+                    i += 1;
+                }
+            }
+        }
+        // Initialize theta, phi
+        {
+            let dir_a = Dirichlet::new(alpha.iter().cloned().collect());
+            for d in 0..num_docs {
+                theta.row_mut(d).assign(&Array1::from_vec(dir_a.ind_sample(&mut rng)));
+            }
+        }
+        {
+            let dir_b = Dirichlet::new(beta.iter().cloned().collect());
+            for k in 0..num_topics {
+                phi.row_mut(k).assign(&Array1::from_vec(dir_b.ind_sample(&mut rng)));
+            }
+        }
+
+        GibbsSampler {
+            alpha_init: alpha_init,
+            beta_init: beta_init,
+            w:      w,
+            z:      z,
+            alpha: alpha,
+            beta:  beta,
+            theta:  theta,
+            phi:    phi,
+            ndk:    ndk,
+            nkv:    nkv,
+            nd:     nd,
+            nk:     nk,
+            z_samples:  z_samples,
+            theta_samples: theta_samples,
+            phi_samples:   phi_samples,
+            alpha_samples: alpha_samples,
+            beta_samples:  beta_samples,
+            ndk_samples:   ndk_samples,
+            nkv_samples:   nkv_samples,
+            nd_samples:    nd_samples,
+            nk_samples:    nk_samples,
+            log_likelihood_samples:  log_likelihood_samples,
+        }
+    }
+}
+
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
