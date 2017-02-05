@@ -932,6 +932,105 @@ impl SamplingSolver for CollapsedGibbsSampler {
     }
 }
 
+impl LDAModel for CollapsedGibbsSampler {
+    // phi^-1: VxK matrix
+    fn print_term_topics(&self) {
+        self.print_term_topics_by(|&v| v);
+    }
+
+    // phi^-1: VxK matrix
+    fn print_term_topics_with_vocab(&self, vocab: &[String]) {
+        self.print_term_topics_by(|&v| &vocab[v]);
+    }
+
+    // phi^-1: VxK matrix
+    fn print_term_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta.len();
+        let beta_sum: f64 = self.beta.scalar_sum();
+        // Infer phi
+        let mut phi: Array2<f64> = Array2::zeros((num_topics, vocab_size));
+        for k in 0..num_topics {
+            for v in 0..vocab_size {
+                phi[[k, v]] = (self.nkv[[k, v]] as f64 + self.beta[v]) / (self.nk[k] as f64 + beta_sum);
+            }
+        }
+        for v in 0..vocab_size {
+            print!("{}:", f(&v));
+            for k in 0..num_topics {
+                print!(" {}*{}", phi[[k, v]], k);
+            }
+            println!("");
+        }
+    }
+
+    // theta: MxK matrix
+    fn print_doc_topics(&self) {
+        let num_docs = self.w.len();
+        let num_topics = self.alpha.len();
+        let alpha_sum: f64 = self.alpha.scalar_sum();
+        // Infer theta
+        let mut theta: Array2<f64> = Array2::zeros((num_docs, num_topics));
+        for d in 0..num_docs {
+            for k in 0..num_topics {
+                theta[[d, k]] = (self.ndk[[d, k]] as f64 + self.alpha[k]) / (self.nd[d] as f64 + alpha_sum);
+            }
+        }
+        for d in 0..num_docs {
+            print!("Document {}:", d);
+            let mut doctopic_vec: Vec<_> = theta.row(d).iter().cloned().enumerate().collect();
+            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (k, prob) in doctopic_vec {
+                print!(" {}*{}", prob, k);
+            }
+            println!("");
+        }
+    }
+
+    // phi: KxV matrix
+    fn print_topics(&self) {
+        self.print_topics_by(|&v| v);
+    }
+
+    // phi: KxV matrix
+    fn print_topics_with_vocab(&self, vocab: &[String]) {
+        self.print_topics_by(|&v| &vocab[v]);
+    }
+
+    // phi: KxV matrix
+    fn print_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta.len();
+        let beta_sum: f64 = self.beta.scalar_sum();
+        // Infer phi
+        let mut phi: Array2<f64> = Array2::zeros((num_topics, vocab_size));
+        for k in 0..num_topics {
+            for v in 0..vocab_size {
+                phi[[k, v]] = (self.nkv[[k, v]] as f64 + self.beta[v]) / (self.nk[k] as f64 + beta_sum);
+            }
+        }
+        for k in 0..num_topics {
+            print!("Topic {}:", k);
+            let mut topicword_vec: Vec<_> = phi.row(k).iter().cloned().enumerate().collect();
+            topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (v, prob) in topicword_vec {
+                print!(" {}*{}", prob, f(&v));
+            }
+            println!("");
+        }
+    }
+
+    /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
+    fn marginal_likelihood(&self) -> f64 {
+        let samples = &self.log_likelihood_samples;
+        samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
+    }
+}
+
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
