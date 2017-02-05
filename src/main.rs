@@ -621,6 +621,79 @@ impl SamplingSolver for GibbsSampler {
     }
 }
 
+impl LDAModel for GibbsSampler {
+    // phi^-1: VxK matrix
+    fn print_term_topics(&self) {
+        self.print_term_topics_by(|&v| v);
+    }
+
+    // phi^-1: VxK matrix
+    fn print_term_topics_with_vocab(&self, vocab: &[String]) {
+        self.print_term_topics_by(|&v| &vocab[v]);
+    }
+
+    // phi^-1: VxK matrix
+    fn print_term_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        let vocab_size = self.beta.len();
+        for v in 0..vocab_size {
+            print!("{}:", f(&v));
+            for k in 0..num_topics {
+                print!(" {}*{}", self.phi[[k, v]], k);
+            }
+            println!("");
+        }
+    }
+
+    // theta: MxK matrix
+    fn print_doc_topics(&self) {
+        let num_docs = self.theta.rows();
+        for d in 0..num_docs {
+            print!("Document {}:", d);
+            let mut doctopic_vec: Vec<_> = self.theta.row(d).iter().cloned().enumerate().collect();
+            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (k, prob) in doctopic_vec {
+                print!(" {}*{}", prob, k);
+            }
+            println!("");
+        }
+    }
+
+    // phi: KxV matrix
+    fn print_topics(&self) {
+        self.print_topics_by(|&v| v);
+    }
+
+    // phi: KxV matrix
+    fn print_topics_with_vocab(&self, vocab: &[String]) {
+        self.print_topics_by(|&v| &vocab[v]);
+    }
+
+    // phi: KxV matrix
+    fn print_topics_by<T, F>(&self, mut f: F)
+        where T: fmt::Display, F: FnMut(&usize) -> T
+    {
+        let num_topics = self.alpha.len();
+        for k in 0..num_topics {
+            print!("Topic {}:", k);
+            let mut topicword_vec: Vec<_> = self.phi.row(k).iter().cloned().enumerate().collect();
+            topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            for (v, prob) in topicword_vec {
+                print!(" {}*{}", prob, f(&v));
+            }
+            println!("");
+        }
+    }
+
+    /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
+    fn marginal_likelihood(&self) -> f64 {
+        let samples = &self.log_likelihood_samples;
+        samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
+    }
+}
+
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
     let num_docs: usize = dataset.len();
     let num_topics: usize = alpha_init.len();
