@@ -383,7 +383,7 @@ impl SamplingSolver for GibbsSampler {
         let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
         let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
         // The same for samples
-        let num_samples = 0;
+        let num_samples = 0;  // FIXME
         let z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
         let theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
         let phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
