@@ -221,16 +221,19 @@ trait LDAModel: Serialize + Deserialize {
     fn marginal_likelihood(&self) -> f64;
 }
 
+#[allow(dead_code)]
 // phi^-1: VxK matrix
 fn print_term_topics<M: LDAModel>(model: &M) {
     print_term_topics_by(model, |&v| v);
 }
 
+#[allow(dead_code)]
 // phi^-1: VxK matrix
 fn print_term_topics_with_vocab<M: LDAModel>(model: &M, vocab: &[String]) {
     print_term_topics_by(model, |&v| &vocab[v]);
 }
 
+#[allow(dead_code)]
 // phi^-1: VxK matrix
 fn print_term_topics_by<M: LDAModel, T, F>(model: &M, mut f: F)
     where T: fmt::Display, F: FnMut(&usize) -> T
@@ -247,6 +250,7 @@ fn print_term_topics_by<M: LDAModel, T, F>(model: &M, mut f: F)
     }
 }
 
+#[allow(dead_code)]
 // theta: MxK matrix
 fn print_doc_topics<M: LDAModel>(model: &M) {
     let theta = model.theta();
@@ -262,16 +266,19 @@ fn print_doc_topics<M: LDAModel>(model: &M) {
     }
 }
 
+#[allow(dead_code)]
 // phi: KxV matrix
 fn print_topics<M: LDAModel>(model: &M) {
     print_topics_by(model, |&v| v);
 }
 
+#[allow(dead_code)]
 // phi: KxV matrix
 fn print_topics_with_vocab<M: LDAModel>(model: &M, vocab: &[String]) {
     print_topics_by(model, |&v| &vocab[v]);
 }
 
+#[allow(dead_code)]
 // phi: KxV matrix
 fn print_topics_by<M: LDAModel, T, F>(model: &M, mut f: F)
     where T: fmt::Display, F: FnMut(&usize) -> T
@@ -1043,6 +1050,7 @@ fn compact_words(mut bags: Vec<Bag>) -> (Vec<Bag>, usize, HashMap<usize, usize>)
     (bags, inv_id_map.len(), inv_id_map)
 }
 
+#[allow(dead_code)]
 fn decompact_words(mut bags: Vec<Bag>, id_map: HashMap<usize, usize>) -> (Vec<Bag>, usize) {
     let mut vocab_size = 0;
     for bag in &mut bags {
