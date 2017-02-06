@@ -398,6 +398,7 @@ impl DirichletPrior {
 }
 
 trait SamplingSolver {
+    fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> Self;
     fn sample(&mut self, sample_index: Option<usize>);
 }
 
@@ -428,8 +429,8 @@ struct GibbsSampler {
     log_likelihood_samples: Array1<f64>,
 }
 
-impl GibbsSampler {
-    pub fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> GibbsSampler {
+impl SamplingSolver for GibbsSampler {
+    fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> GibbsSampler {
         let num_docs: usize = dataset.len();
         let num_topics: usize = alpha_init.len();
         let vocab_size: usize = beta_init.len();
@@ -542,9 +543,7 @@ impl GibbsSampler {
             log_likelihood_samples:  log_likelihood_samples,
         }
     }
-}
 
-impl SamplingSolver for GibbsSampler {
     fn sample(&mut self, sample_index: Option<usize>) {
         let num_docs: usize = self.w.len();
         let num_topics: usize = self.alpha_init.len();
@@ -727,8 +726,8 @@ struct CollapsedGibbsSampler {
     log_likelihood_samples: Array1<f64>,
 }
 
-impl CollapsedGibbsSampler {
-    pub fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> CollapsedGibbsSampler {
+impl SamplingSolver for CollapsedGibbsSampler {
+    fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> CollapsedGibbsSampler {
         let num_docs: usize = dataset.len();
         let num_topics: usize = alpha_init.len();
         let vocab_size: usize = beta_init.len();
@@ -820,9 +819,7 @@ impl CollapsedGibbsSampler {
             log_likelihood_samples:  log_likelihood_samples,
         }
     }
-}
 
-impl SamplingSolver for CollapsedGibbsSampler {
     fn sample(&mut self, sample_index: Option<usize>) {
         let num_docs: usize = self.w.len();
         let num_topics: usize = self.alpha_init.len();
@@ -985,6 +982,35 @@ impl LDAModel for CollapsedGibbsSampler {
         let samples = &self.log_likelihood_samples;
         samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
     }
+}
+
+fn run_solver<S: SamplingSolver>(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> S {
+    write!(&mut std::io::stderr(), "Initializing...").unwrap();
+    let mut sampler = S::new(dataset, alpha_init, beta_init);
+    writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
+
+    write!(&mut std::io::stderr(), "Sampling...").unwrap();
+    for s in 0..(burn_in + num_samples * lag) {
+        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
+            let i_sample = (s - burn_in + 1) / lag - 1;
+            sampler.sample(Some(i_sample));
+        }
+        else {
+            sampler.sample(None);
+        }
+        if s < burn_in {
+            write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
+        }
+        else {
+            if s == burn_in {
+                writeln!(&mut std::io::stderr(), "").unwrap();
+            }
+            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples * lag).unwrap();
+        }
+    }
+    writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
+
+    sampler
 }
 
 fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> GibbsSampler {
@@ -1333,7 +1359,7 @@ fn main() {
 
         match method {
             Method::Gibbs => {
-                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<GibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 print_term_topics_by(&model, |id| inv_id_map[id]);
@@ -1346,7 +1372,7 @@ fn main() {
                 }
             },
             Method::CollapsedGibbs => {
-                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<CollapsedGibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 print_term_topics_by(&model, |id| inv_id_map[id]);
@@ -1413,7 +1439,7 @@ fn main() {
 
         match method {
             Method::Gibbs => {
-                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<GibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 print_term_topics_by(&model, |id| inv_id_map[id]);
@@ -1428,7 +1454,7 @@ fn main() {
                 }
             },
             Method::CollapsedGibbs => {
-                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<CollapsedGibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 print_term_topics_by(&model, |id| inv_id_map[id]);
@@ -1498,7 +1524,7 @@ fn main() {
 
         match method {
             Method::Gibbs => {
-                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<GibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 match vocab {
@@ -1519,7 +1545,7 @@ fn main() {
                 }
             },
             Method::CollapsedGibbs => {
-                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+                let model = run_solver::<CollapsedGibbsSampler>(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
                 print_doc_topics(&model);
                 match vocab {
