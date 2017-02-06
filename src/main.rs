@@ -4,6 +4,7 @@ extern crate libc;
 #[macro_use]
 extern crate ndarray;
 extern crate rand;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
@@ -22,6 +23,7 @@ use clap::{Arg, App, AppSettings};
 use ndarray::{Array1, Array2, Array3, Axis};
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
+use serde::{Serialize, Deserialize};
 
 
 type Bag = HashMap<usize, usize>;
@@ -298,25 +300,81 @@ impl Model {
     }
 }
 
-trait LDAModel {
-    // phi^-1: VxK matrix
-    fn print_term_topics(&self);
-    // phi^-1: VxK matrix
-    fn print_term_topics_with_vocab(&self, vocab: &[String]);
-    // phi^-1: VxK matrix
-    fn print_term_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T;
-    // theta: MxK matrix
-    fn print_doc_topics(&self);
-    // phi: KxV matrix
-    fn print_topics(&self);
-    // phi: KxV matrix
-    fn print_topics_with_vocab(&self, vocab: &[String]);
-    // phi: KxV matrix
-    fn print_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T;
+trait LDAModel: Serialize + Deserialize {
+    fn alpha(&self) -> Array1<f64>;
+    fn beta(&self) -> Array1<f64>;
+    fn phi(&self) -> Array2<f64>;
+    fn theta(&self) -> Array2<f64>;
     /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
     fn marginal_likelihood(&self) -> f64;
+}
+
+// phi^-1: VxK matrix
+fn print_term_topics<M: LDAModel>(model: &M) {
+    print_term_topics_by(model, |&v| v);
+}
+
+// phi^-1: VxK matrix
+fn print_term_topics_with_vocab<M: LDAModel>(model: &M, vocab: &[String]) {
+    print_term_topics_by(model, |&v| &vocab[v]);
+}
+
+// phi^-1: VxK matrix
+fn print_term_topics_by<M: LDAModel, T, F>(model: &M, mut f: F)
+    where T: fmt::Display, F: FnMut(&usize) -> T
+{
+    let phi = model.phi();
+    let num_topics = model.alpha().len();
+    let vocab_size = model.beta().len();
+    for v in 0..vocab_size {
+        print!("{}:", f(&v));
+        for k in 0..num_topics {
+            print!(" {}*{}", phi[[k, v]], k);
+        }
+        println!("");
+    }
+}
+
+// theta: MxK matrix
+fn print_doc_topics<M: LDAModel>(model: &M) {
+    let theta = model.theta();
+    let num_docs = theta.rows();
+    for d in 0..num_docs {
+        print!("Document {}:", d);
+        let mut doctopic_vec: Vec<_> = theta.row(d).iter().cloned().enumerate().collect();
+        doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        for (k, prob) in doctopic_vec {
+            print!(" {}*{}", prob, k);
+        }
+        println!("");
+    }
+}
+
+// phi: KxV matrix
+fn print_topics<M: LDAModel>(model: &M) {
+    print_topics_by(model, |&v| v);
+}
+
+// phi: KxV matrix
+fn print_topics_with_vocab<M: LDAModel>(model: &M, vocab: &[String]) {
+    print_topics_by(model, |&v| &vocab[v]);
+}
+
+// phi: KxV matrix
+fn print_topics_by<M: LDAModel, T, F>(model: &M, mut f: F)
+    where T: fmt::Display, F: FnMut(&usize) -> T
+{
+    let phi = model.phi();
+    let num_topics = model.alpha().len();
+    for k in 0..num_topics {
+        print!("Topic {}:", k);
+        let mut topicword_vec: Vec<_> = phi.row(k).iter().cloned().enumerate().collect();
+        topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        for (v, prob) in topicword_vec {
+            print!(" {}*{}", prob, f(&v));
+        }
+        println!("");
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -343,6 +401,7 @@ trait SamplingSolver {
     fn sample(&mut self, sample_index: Option<usize>);
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 struct GibbsSampler {
     alpha_init: DirichletPrior,
     beta_init: DirichletPrior,
@@ -622,69 +681,20 @@ impl SamplingSolver for GibbsSampler {
 }
 
 impl LDAModel for GibbsSampler {
-    // phi^-1: VxK matrix
-    fn print_term_topics(&self) {
-        self.print_term_topics_by(|&v| v);
+    fn alpha(&self) -> Array1<f64> {
+        self.alpha.clone()
     }
 
-    // phi^-1: VxK matrix
-    fn print_term_topics_with_vocab(&self, vocab: &[String]) {
-        self.print_term_topics_by(|&v| &vocab[v]);
+    fn beta(&self) -> Array1<f64> {
+        self.beta.clone()
     }
 
-    // phi^-1: VxK matrix
-    fn print_term_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T
-    {
-        let num_topics = self.alpha.len();
-        let vocab_size = self.beta.len();
-        for v in 0..vocab_size {
-            print!("{}:", f(&v));
-            for k in 0..num_topics {
-                print!(" {}*{}", self.phi[[k, v]], k);
-            }
-            println!("");
-        }
+    fn phi(&self) -> Array2<f64> {
+        self.phi.clone()
     }
 
-    // theta: MxK matrix
-    fn print_doc_topics(&self) {
-        let num_docs = self.theta.rows();
-        for d in 0..num_docs {
-            print!("Document {}:", d);
-            let mut doctopic_vec: Vec<_> = self.theta.row(d).iter().cloned().enumerate().collect();
-            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            for (k, prob) in doctopic_vec {
-                print!(" {}*{}", prob, k);
-            }
-            println!("");
-        }
-    }
-
-    // phi: KxV matrix
-    fn print_topics(&self) {
-        self.print_topics_by(|&v| v);
-    }
-
-    // phi: KxV matrix
-    fn print_topics_with_vocab(&self, vocab: &[String]) {
-        self.print_topics_by(|&v| &vocab[v]);
-    }
-
-    // phi: KxV matrix
-    fn print_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T
-    {
-        let num_topics = self.alpha.len();
-        for k in 0..num_topics {
-            print!("Topic {}:", k);
-            let mut topicword_vec: Vec<_> = self.phi.row(k).iter().cloned().enumerate().collect();
-            topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            for (v, prob) in topicword_vec {
-                print!(" {}*{}", prob, f(&v));
-            }
-            println!("");
-        }
+    fn theta(&self) -> Array2<f64> {
+        self.theta.clone()
     }
 
     /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
@@ -694,6 +704,7 @@ impl LDAModel for GibbsSampler {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 struct CollapsedGibbsSampler {
     alpha_init: DirichletPrior,
     beta_init: DirichletPrior,
@@ -933,20 +944,15 @@ impl SamplingSolver for CollapsedGibbsSampler {
 }
 
 impl LDAModel for CollapsedGibbsSampler {
-    // phi^-1: VxK matrix
-    fn print_term_topics(&self) {
-        self.print_term_topics_by(|&v| v);
+    fn alpha(&self) -> Array1<f64> {
+        self.alpha.clone()
     }
 
-    // phi^-1: VxK matrix
-    fn print_term_topics_with_vocab(&self, vocab: &[String]) {
-        self.print_term_topics_by(|&v| &vocab[v]);
+    fn beta(&self) -> Array1<f64> {
+        self.beta.clone()
     }
 
-    // phi^-1: VxK matrix
-    fn print_term_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T
-    {
+    fn phi(&self) -> Array2<f64> {
         let num_topics = self.alpha.len();
         let vocab_size = self.beta.len();
         let beta_sum: f64 = self.beta.scalar_sum();
@@ -957,17 +963,10 @@ impl LDAModel for CollapsedGibbsSampler {
                 phi[[k, v]] = (self.nkv[[k, v]] as f64 + self.beta[v]) / (self.nk[k] as f64 + beta_sum);
             }
         }
-        for v in 0..vocab_size {
-            print!("{}:", f(&v));
-            for k in 0..num_topics {
-                print!(" {}*{}", phi[[k, v]], k);
-            }
-            println!("");
-        }
+        phi
     }
 
-    // theta: MxK matrix
-    fn print_doc_topics(&self) {
+    fn theta(&self) -> Array2<f64> {
         let num_docs = self.w.len();
         let num_topics = self.alpha.len();
         let alpha_sum: f64 = self.alpha.scalar_sum();
@@ -978,50 +977,7 @@ impl LDAModel for CollapsedGibbsSampler {
                 theta[[d, k]] = (self.ndk[[d, k]] as f64 + self.alpha[k]) / (self.nd[d] as f64 + alpha_sum);
             }
         }
-        for d in 0..num_docs {
-            print!("Document {}:", d);
-            let mut doctopic_vec: Vec<_> = theta.row(d).iter().cloned().enumerate().collect();
-            doctopic_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            for (k, prob) in doctopic_vec {
-                print!(" {}*{}", prob, k);
-            }
-            println!("");
-        }
-    }
-
-    // phi: KxV matrix
-    fn print_topics(&self) {
-        self.print_topics_by(|&v| v);
-    }
-
-    // phi: KxV matrix
-    fn print_topics_with_vocab(&self, vocab: &[String]) {
-        self.print_topics_by(|&v| &vocab[v]);
-    }
-
-    // phi: KxV matrix
-    fn print_topics_by<T, F>(&self, mut f: F)
-        where T: fmt::Display, F: FnMut(&usize) -> T
-    {
-        let num_topics = self.alpha.len();
-        let vocab_size = self.beta.len();
-        let beta_sum: f64 = self.beta.scalar_sum();
-        // Infer phi
-        let mut phi: Array2<f64> = Array2::zeros((num_topics, vocab_size));
-        for k in 0..num_topics {
-            for v in 0..vocab_size {
-                phi[[k, v]] = (self.nkv[[k, v]] as f64 + self.beta[v]) / (self.nk[k] as f64 + beta_sum);
-            }
-        }
-        for k in 0..num_topics {
-            print!("Topic {}:", k);
-            let mut topicword_vec: Vec<_> = phi.row(k).iter().cloned().enumerate().collect();
-            topicword_vec.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            for (v, prob) in topicword_vec {
-                print!(" {}*{}", prob, f(&v));
-            }
-            println!("");
-        }
+        theta
     }
 
     /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
@@ -1031,222 +987,19 @@ impl LDAModel for CollapsedGibbsSampler {
     }
 }
 
-fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
-    let num_docs: usize = dataset.len();
-    let num_topics: usize = alpha_init.len();
-    let vocab_size: usize = beta_init.len();
-    let mut rng = rand::thread_rng();
-    let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
-        use DirichletPrior::*;
-        match alpha_init {
-            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
-        }
-    };
-    let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
-        use DirichletPrior::*;
-        match beta_init {
-            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
-        }
-    };
-    println!("K = {}", num_topics);
-    println!("M = {}", num_docs);
-    println!("V = {}", vocab_size);
-
+fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> GibbsSampler {
     write!(&mut std::io::stderr(), "Initializing...").unwrap();
-
-    // Construct zero-filled nested arrays
-    let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut theta: Array2<f64>     = Array2::zeros((num_docs, num_topics));
-    let mut phi:   Array2<f64>     = Array2::zeros((num_topics, vocab_size));
-    let mut ndk:   Array2<usize>   = Array2::zeros((num_docs, num_topics));
-    let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
-    let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
-    let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
-    // The same for samples
-    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    let mut theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
-    let mut phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
-    let mut alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
-    let mut beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
-    let mut ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
-    let mut nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
-    let mut nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
-    let mut nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
-    let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
-
-    for bag in dataset {
-        // n_d
-        let mut n_d = 0;
-        for &count in bag.values() {
-            n_d += count;
-        }
-        w.push(vec![0; n_d]);
-        z.push(vec![0; n_d]);
-        z_samples.push(vec![vec![0; num_topics]; n_d]);
-    }
-
-    // Initialize w, z, ndk and nkv
-    let among_topics = Range::new(0, num_topics);
-    for (d, bag) in dataset.iter().enumerate() {
-        let mut i = 0;
-        for (&v, &count) in bag {
-            for _ in 0..count {
-                w[d][i] = v;
-                let k = among_topics.ind_sample(&mut rng);
-                z[d][i] = k;
-                ndk[[d, k]] += 1;
-                nkv[[k, v]] += 1;
-                nd[d] += 1;
-                nk[k] += 1;
-                i += 1;
-            }
-        }
-    }
-    // Initialize theta, phi
-    {
-        let dir_a = Dirichlet::new(alpha.iter().cloned().collect());
-        for d in 0..num_docs {
-            theta.row_mut(d).assign(&Array1::from_vec(dir_a.ind_sample(&mut rng)));
-        }
-    }
-    {
-        let dir_b = Dirichlet::new(beta.iter().cloned().collect());
-        for k in 0..num_topics {
-            phi.row_mut(k).assign(&Array1::from_vec(dir_b.ind_sample(&mut rng)));
-        }
-    }
-
-    println!("z = {:?}", z);
-    println!("theta = {:?}", theta);
-    println!("ndk = {:?}", ndk);
-    println!("phi = {:?}", phi);
-    println!("nkv = {:?}", nkv);
-
+    let mut sampler = GibbsSampler::new(dataset, alpha_init, beta_init);
     writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
 
-    // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples * lag) {
-        let alpha_sum: f64 = alpha.scalar_sum();
-        let beta_sum: f64 = beta.scalar_sum();
-        for (d, w_d) in w.iter().enumerate() {
-            for (i, &w_di) in w_d.iter().enumerate() {
-                let v = w_di;
-                // Sample z_di
-                let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
-                for k in 0..num_topics {
-                    weights.push(theta[[d, k]] * phi[[k, v]]);
-                }
-                let cat = Categorical::new(weights);
-                let old_z_di = z[d][i];
-                let new_z_di = cat.ind_sample(&mut rng);
-                z[d][i] = new_z_di;
-                if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-                    z_samples[d][i][new_z_di] += 1;
-                }
-                // Update ndk and nkv
-                ndk[[d, old_z_di]] -= 1;
-                ndk[[d, new_z_di]] += 1;
-                nkv[[old_z_di, v]] -= 1;
-                nkv[[new_z_di, v]] += 1;
-                nk[old_z_di] -= 1;
-                nk[new_z_di] += 1;
-            }
-            // Sample theta_d
-            let mut alpha_d: Vec<f64> = Vec::with_capacity(num_topics);
-            for k in 0..num_topics {
-                alpha_d.push(ndk[[d, k]] as f64 + alpha[k]);
-            }
-            let dir = Dirichlet::new(alpha_d);
-            theta.row_mut(d).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
-        }
-        for k in 0..num_topics {
-            // Sample phi_k
-            let mut beta_k: Vec<f64> = Vec::with_capacity(vocab_size);
-            for v in 0..vocab_size {
-                beta_k.push(nkv[[k, v]] as f64 + beta[v]);
-            }
-            let dir = Dirichlet::new(beta_k);
-            phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
-        }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
-            // Store samples
-            let mut phi_s = phi_samples.subview_mut(Axis(0), i_sample);
-            let mut theta_s = theta_samples.subview_mut(Axis(0), i_sample);
-            let mut alpha_s = alpha_samples.subview_mut(Axis(0), i_sample);
-            let mut beta_s = beta_samples.subview_mut(Axis(0), i_sample);
-            let mut ndk_s = ndk_samples.subview_mut(Axis(0), i_sample);
-            let mut nkv_s = nkv_samples.subview_mut(Axis(0), i_sample);
-            let mut nd_s = nd_samples.subview_mut(Axis(0), i_sample);
-            let mut nk_s = nk_samples.subview_mut(Axis(0), i_sample);
-            phi_s.assign(&phi);
-            theta_s.assign(&theta);
-            alpha_s.assign(&alpha);
-            beta_s.assign(&beta);
-            ndk_s.assign(&ndk);
-            nkv_s.assign(&nkv);
-            nd_s.assign(&nd);
-            nk_s.assign(&nk);
-            // Evaluate the log-likelihood value for the current parameters
-            let mut log_likelihood = 0.0;
-            log_likelihood += num_topics as f64 *
-                (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-            for k in 0..num_topics {
-                log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                    - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
-            }
-            log_likelihood_samples[i_sample] = log_likelihood;
-            println!("log_likelihood = {}", log_likelihood);
+            sampler.sample(Some(i_sample));
         }
-        // Update alpha and beta
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            if !constant_alpha {
-                let ndk = ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    alpha[k] = alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                    for a in &mut alpha {
-                        *a = a_sym;
-                    }
-                }
-            }
-            if !constant_beta {
-                let nkv = nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    beta[v] = beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = beta.scalar_sum() / beta.len() as f64;
-                    for b in &mut beta {
-                        *b = b_sym;
-                    }
-                }
-            }
+        else {
+            sampler.sample(None);
         }
         if s < burn_in {
             write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
@@ -1260,244 +1013,23 @@ fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior,
     }
     writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
 
-    // Distribution of z
-    for (d, z_samples_d) in z_samples.iter().enumerate() {
-        for (i, samples) in z_samples_d.iter().enumerate() {
-            let mut sum = 0.0;
-            for k in 0..num_topics {
-                sum += samples[k] as f64;
-            }
-            print!("z[{:3}][{:3}] = ", d, i);
-            for k in 0..num_topics {
-                print!("{:3}:{:.2} ", k, samples[k] as f64 / sum);
-            }
-            println!("");
-        }
-    }
-
-    Model {
-        alpha_init:  alpha_init,
-        beta_init:   beta_init,
-        burn_in:     burn_in,
-        num_samples: num_samples,
-        lag:         lag,
-        alpha:       alpha,
-        beta:        beta,
-        theta:       theta,
-        phi:         phi,
-        z_samples:   z_samples,
-        log_likelihood_samples: log_likelihood_samples,
-    }
+    sampler
 }
 
-fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> Model {
-    let num_docs: usize = dataset.len();
-    let num_topics: usize = alpha_init.len();
-    let vocab_size: usize = beta_init.len();
-    let mut rng = rand::thread_rng();
-    let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
-        use DirichletPrior::*;
-        match alpha_init {
-            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
-        }
-    };
-    let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
-        use DirichletPrior::*;
-        match beta_init {
-            SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-            SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-            AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-            AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
-        }
-    };
-    // println!("K = {}", num_topics);
-    // println!("M = {}", num_docs);
-    // println!("V = {}", vocab_size);
-
+fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> CollapsedGibbsSampler {
     write!(&mut std::io::stderr(), "Initializing...").unwrap();
-
-    // Construct zero-filled nested arrays
-    let mut w:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut z:     Vec<Vec<usize>> = Vec::with_capacity(num_docs);
-    let mut theta: Array2<f64>     = Array2::zeros((num_docs, num_topics));
-    let mut phi:   Array2<f64>     = Array2::zeros((num_topics, vocab_size));
-    let mut ndk:   Array2<usize>   = Array2::zeros((num_docs, num_topics));
-    let mut nkv:   Array2<usize>   = Array2::zeros((num_topics, vocab_size));
-    let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
-    let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
-    // The same for samples
-    let mut z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-    let mut theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
-    let mut phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
-    let mut alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
-    let mut beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
-    let mut ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
-    let mut nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
-    let mut nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
-    let mut nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
-    let mut log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
-
-    for bag in dataset {
-        // n_d
-        let mut n_d = 0;
-        for &count in bag.values() {
-            n_d += count;
-        }
-        w.push(vec![0; n_d]);
-        z.push(vec![0; n_d]);
-        z_samples.push(vec![vec![0; num_topics]; n_d]);
-    }
-
-    // Initialize w, z, ndk and nkv
-    let among_topics = Range::new(0, num_topics);
-    for (d, bag) in dataset.iter().enumerate() {
-        let mut i = 0;
-        for (&v, &count) in bag {
-            for _ in 0..count {
-                w[d][i] = v;
-                let k = among_topics.ind_sample(&mut rng);
-                z[d][i] = k;
-                ndk[[d, k]] += 1;
-                nkv[[k, v]] += 1;
-                nd[d] += 1;
-                nk[k] += 1;
-                i += 1;
-            }
-        }
-    }
-
-    // println!("z = {:?}", z);
-    // println!("ndk = {:?}", ndk);
-    // println!("nkv = {:?}", nkv);
-
+    let mut sampler = CollapsedGibbsSampler::new(dataset, alpha_init, beta_init);
     writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
 
-    // Sampling
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples * lag) {
-        // println!("s = {}", s);
-        let alpha_sum: f64 = alpha.scalar_sum();
-        let beta_sum: f64 = beta.scalar_sum();
-        for (d, w_d) in w.iter().enumerate() {
-            for (i, &w_di) in w_d.iter().enumerate() {
-                let v = w_di;
-                //
-                let old_z_di = z[d][i];
-                ndk[[d, old_z_di]] -= 1;
-                nkv[[old_z_di, v]] -= 1;
-                nd[d] -= 1;
-                nk[old_z_di] -= 1;
-                // Sample z_di
-                let mut weights: Vec<f64> = Vec::with_capacity(num_topics);
-                for k in 0..num_topics {
-                    let e_theta_dk = (ndk[[d, k]] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
-                    let e_phi_kv = (nkv[[k, v]] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
-                    weights.push(e_theta_dk * e_phi_kv);
-                }
-                // println!("{:?}", weights);
-                let cat = Categorical::new(weights);
-                let new_z_di = cat.ind_sample(&mut rng);
-                z[d][i] = new_z_di;
-                ndk[[d, new_z_di]] += 1;
-                nkv[[new_z_di, v]] += 1;
-                nd[d] += 1;
-                nk[new_z_di] += 1;
-                // Save the sample
-                if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-                    z_samples[d][i][new_z_di] += 1;
-                }
-            }
-            // println!("{:?}", z);
-        }
-        // println!("{:?}", z);
-        // Infer phi and theta
-        for d in 0..num_docs {
-            for k in 0..num_topics {
-                theta[[d, k]] = (ndk[[d, k]] as f64 + alpha[k]) / (nd[d] as f64 + alpha_sum);
-            }
-        }
-        for k in 0..num_topics {
-            for v in 0..vocab_size {
-                phi[[k, v]] = (nkv[[k, v]] as f64 + beta[v]) / (nk[k] as f64 + beta_sum);
-            }
-        }
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
             let i_sample = (s - burn_in + 1) / lag - 1;
-            // Store samples
-            let mut phi_s = phi_samples.subview_mut(Axis(0), i_sample);
-            let mut theta_s = theta_samples.subview_mut(Axis(0), i_sample);
-            let mut alpha_s = alpha_samples.subview_mut(Axis(0), i_sample);
-            let mut beta_s = beta_samples.subview_mut(Axis(0), i_sample);
-            let mut ndk_s = ndk_samples.subview_mut(Axis(0), i_sample);
-            let mut nkv_s = nkv_samples.subview_mut(Axis(0), i_sample);
-            let mut nd_s = nd_samples.subview_mut(Axis(0), i_sample);
-            let mut nk_s = nk_samples.subview_mut(Axis(0), i_sample);
-            phi_s.assign(&phi);
-            theta_s.assign(&theta);
-            alpha_s.assign(&alpha);
-            beta_s.assign(&beta);
-            ndk_s.assign(&ndk);
-            nkv_s.assign(&nkv);
-            nd_s.assign(&nd);
-            nk_s.assign(&nk);
-            // Evaluate the log-likelihood value for the current parameters
-            let mut log_likelihood = 0.0;
-            log_likelihood += num_topics as f64 *
-                (cmath::lngamma(beta.scalar_sum()) - beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-            for k in 0..num_topics {
-                log_likelihood += (nkv.row(k).map(|&x| x as f64) + &beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                    - cmath::lngamma(nk[k] as f64 + beta.scalar_sum());
-            }
-            log_likelihood_samples[i_sample] = log_likelihood;
-            println!("{} {}", s, log_likelihood);
+            sampler.sample(Some(i_sample));
         }
-        // Update alpha and beta
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            if !constant_alpha {
-                // BUG: thread 'main' panicked at 'assertion failed: index < dim', /home/yuta/.cargo/registry/src/github.com-1ecc6299db9ec823/ndarray-0.7.2/src/dimension/mod.rs:210
-                let ndk = ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    alpha[k] = alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = alpha.scalar_sum() / alpha.len() as f64;
-                    for a in &mut alpha {
-                        *a = a_sym;
-                    }
-                }
-            }
-            if !constant_beta {
-                let nkv = nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    beta[v] = beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = beta.scalar_sum() / beta.len() as f64;
-                    for b in &mut beta {
-                        *b = b_sym;
-                    }
-                }
-            }
+        else {
+            sampler.sample(None);
         }
-        // println!("log_likelihood = {}", log_likelihood);
         if s < burn_in {
             write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
         }
@@ -1510,34 +1042,7 @@ fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: Diric
     }
     writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
 
-    // Distribution of z
-    for (d, z_samples_d) in z_samples.iter().enumerate() {
-        for (i, samples) in z_samples_d.iter().enumerate() {
-            let mut sum = 0.0;
-            for k in 0..num_topics {
-                sum += samples[k] as f64;
-            }
-            // print!("z[{:3}][{:3}] = ", d, i);
-            // for k in 0..num_topics {
-            //     print!("{:3}:{:.2} ", k, samples[k] as f64 / sum);
-            // }
-            // println!("");
-        }
-    }
-
-    Model {
-        alpha_init:  alpha_init,
-        beta_init:   beta_init,
-        burn_in:     burn_in,
-        num_samples: num_samples,
-        lag:         lag,
-        alpha:       alpha,
-        beta:        beta,
-        theta:       theta,
-        phi:         phi,
-        z_samples:   z_samples,
-        log_likelihood_samples: log_likelihood_samples,
-    }
+    sampler
 }
 
 fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], beta: &[f64]) -> Vec<Bag> {
@@ -1770,14 +1275,7 @@ fn main() {
         .setting(AppSettings::ArgRequiredElseHelp)
         .get_matches();
 
-    let learn = {
-        let method = value_t_or_exit!(matches, "method", Method);
-        match method {
-            Method::Gibbs          => gibbs,
-            Method::CollapsedGibbs => collapsed_gibbs,
-        }
-    };
-
+    let method = value_t_or_exit!(matches, "method", Method);
     let burn_in = value_t_or_exit!(matches, "burn-in", usize);
     let samples = value_t_or_exit!(matches, "samples", usize);
     let lag = value_t_or_exit!(matches, "lag", usize);
@@ -1833,16 +1331,33 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+        match method {
+            Method::Gibbs => {
+                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
-        model.print_doc_topics();
-        model.print_term_topics_by(|id| inv_id_map[id]);
-        model.print_topics_by(|id| inv_id_map[id]);
+                print_doc_topics(&model);
+                print_term_topics_by(&model, |id| inv_id_map[id]);
+                print_topics_by(&model, |id| inv_id_map[id]);
 
-        if let Some(fp) = matches.value_of("model") {
-            let mut file = File::create(&fp).unwrap();
-            let mut file = BufWriter::new(file);
-            serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
+            },
+            Method::CollapsedGibbs => {
+                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+
+                print_doc_topics(&model);
+                print_term_topics_by(&model, |id| inv_id_map[id]);
+                print_topics_by(&model, |id| inv_id_map[id]);
+
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
+            },
         }
     }
     else if matches.is_present("test-visual-dataset") {
@@ -1896,17 +1411,37 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
-        model.print_doc_topics();
-        model.print_term_topics_by(|id| inv_id_map[id]);
-        model.print_topics_by(|id| inv_id_map[id]);
-        println!("alpha = {:?}", model.alpha);
-        println!("beta = {:?}", model.beta);
+        match method {
+            Method::Gibbs => {
+                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
-        if let Some(fp) = matches.value_of("model") {
-            let mut file = File::create(&fp).unwrap();
-            let mut file = BufWriter::new(file);
-            serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                print_doc_topics(&model);
+                print_term_topics_by(&model, |id| inv_id_map[id]);
+                print_topics_by(&model, |id| inv_id_map[id]);
+                println!("alpha = {:?}", model.alpha);
+                println!("beta = {:?}", model.beta);
+
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
+            },
+            Method::CollapsedGibbs => {
+                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+
+                print_doc_topics(&model);
+                print_term_topics_by(&model, |id| inv_id_map[id]);
+                print_topics_by(&model, |id| inv_id_map[id]);
+                println!("alpha = {:?}", model.alpha);
+                println!("beta = {:?}", model.beta);
+
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
+            },
         }
     }
     else if let Some(input_fp) = matches.value_of("INPUT") {
@@ -1961,24 +1496,49 @@ fn main() {
             }
         };
 
-        let model = learn(&dataset, alpha_init, beta_init, burn_in, samples, lag);
+        match method {
+            Method::Gibbs => {
+                let model = gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
-        model.print_doc_topics();
-        match vocab {
-            Some(vocab) => {
-                model.print_term_topics_by(|id| &vocab[inv_id_map[id]]);
-                model.print_topics_by(|id| &vocab[inv_id_map[id]]);
+                print_doc_topics(&model);
+                match vocab {
+                    Some(vocab) => {
+                        print_term_topics_by(&model, |id| &vocab[inv_id_map[id]]);
+                        print_topics_by(&model, |id| &vocab[inv_id_map[id]]);
+                    },
+                    None => {
+                        print_term_topics_by(&model, |id| inv_id_map[id]);
+                        print_topics_by(&model, |id| inv_id_map[id]);
+                    }
+                }
+
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
             },
-            None => {
-                model.print_term_topics_by(|id| inv_id_map[id]);
-                model.print_topics_by(|id| inv_id_map[id]);
-            }
-        }
+            Method::CollapsedGibbs => {
+                let model = collapsed_gibbs(&dataset, alpha_init, beta_init, burn_in, samples, lag);
 
-        if let Some(fp) = matches.value_of("model") {
-            let mut file = File::create(&fp).unwrap();
-            let mut file = BufWriter::new(file);
-            serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                print_doc_topics(&model);
+                match vocab {
+                    Some(vocab) => {
+                        print_term_topics_by(&model, |id| &vocab[inv_id_map[id]]);
+                        print_topics_by(&model, |id| &vocab[inv_id_map[id]]);
+                    },
+                    None => {
+                        print_term_topics_by(&model, |id| inv_id_map[id]);
+                        print_topics_by(&model, |id| inv_id_map[id]);
+                    }
+                }
+
+                if let Some(fp) = matches.value_of("model") {
+                    let mut file = File::create(&fp).unwrap();
+                    let mut file = BufWriter::new(file);
+                    serde_json::to_writer_pretty(&mut file, &model).unwrap();
+                }
+            },
         }
     };
 }
