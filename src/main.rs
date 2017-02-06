@@ -1013,64 +1013,6 @@ fn run_solver<S: SamplingSolver>(dataset: &[Bag], alpha_init: DirichletPrior, be
     sampler
 }
 
-fn gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> GibbsSampler {
-    write!(&mut std::io::stderr(), "Initializing...").unwrap();
-    let mut sampler = GibbsSampler::new(dataset, alpha_init, beta_init);
-    writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
-
-    write!(&mut std::io::stderr(), "Sampling...").unwrap();
-    for s in 0..(burn_in + num_samples * lag) {
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            sampler.sample(Some(i_sample));
-        }
-        else {
-            sampler.sample(None);
-        }
-        if s < burn_in {
-            write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
-        }
-        else {
-            if s == burn_in {
-                writeln!(&mut std::io::stderr(), "").unwrap();
-            }
-            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples * lag).unwrap();
-        }
-    }
-    writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
-
-    sampler
-}
-
-fn collapsed_gibbs(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> CollapsedGibbsSampler {
-    write!(&mut std::io::stderr(), "Initializing...").unwrap();
-    let mut sampler = CollapsedGibbsSampler::new(dataset, alpha_init, beta_init);
-    writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
-
-    write!(&mut std::io::stderr(), "Sampling...").unwrap();
-    for s in 0..(burn_in + num_samples * lag) {
-        if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            sampler.sample(Some(i_sample));
-        }
-        else {
-            sampler.sample(None);
-        }
-        if s < burn_in {
-            write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
-        }
-        else {
-            if s == burn_in {
-                writeln!(&mut std::io::stderr(), "").unwrap();
-            }
-            write!(&mut std::io::stderr(), "\rSampling... {}/{}", s - burn_in + 1, num_samples * lag).unwrap();
-        }
-    }
-    writeln!(&mut std::io::stderr(), "\rSampled.").unwrap();
-
-    sampler
-}
-
 fn make_dataset(num_docs: usize, mean_nd: f64, std_dev_nd: f64, alpha: &[f64], beta: &[f64]) -> Vec<Bag> {
     let num_topics: usize = alpha.len();
     let mut rng = rand::thread_rng();
