@@ -347,22 +347,22 @@ impl SamplingSolver for GibbsSampler {
         let num_topics: usize = alpha_init.len();
         let vocab_size: usize = beta_init.len();
         let mut rng = rand::thread_rng();
-        let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
+        let alpha: Array1<f64> = {
             use DirichletPrior::*;
             match alpha_init {
-                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+                SymmetricConstant(size, param) => Array1::from_vec(vec![param; size]),
+                SymmetricVariable(size, param) => Array1::from_vec(vec![param; size]),
+                AsymmetricConstant(ref params) => Array1::from_vec(params.clone()),
+                AsymmetricVariable(ref params) => Array1::from_vec(params.clone()),
             }
         };
-        let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
+        let beta: Array1<f64> = {
             use DirichletPrior::*;
             match beta_init {
-                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+                SymmetricConstant(size, param) => Array1::from_vec(vec![param; size]),
+                SymmetricVariable(size, param) => Array1::from_vec(vec![param; size]),
+                AsymmetricConstant(ref params) => Array1::from_vec(params.clone()),
+                AsymmetricVariable(ref params) => Array1::from_vec(params.clone()),
             }
         };
 
@@ -464,19 +464,19 @@ impl SamplingSolver for GibbsSampler {
         let (symmetric_alpha, constant_alpha) = {
             use DirichletPrior::*;
             match self.alpha_init {
-                SymmetricConstant(size, param) => (true,  true),
-                SymmetricVariable(size, param) => (true,  false),
-                AsymmetricConstant(ref params) => (false, true),
-                AsymmetricVariable(ref params) => (false, false),
+                SymmetricConstant(_, _) => (true,  true),
+                SymmetricVariable(_, _) => (true,  false),
+                AsymmetricConstant(_)   => (false, true),
+                AsymmetricVariable(_)   => (false, false),
             }
         };
         let (symmetric_beta, constant_beta) = {
             use DirichletPrior::*;
             match self.beta_init {
-                SymmetricConstant(size, param) => (true,  true),
-                SymmetricVariable(size, param) => (true,  false),
-                AsymmetricConstant(ref params) => (false, true),
-                AsymmetricVariable(ref params) => (false, false),
+                SymmetricConstant(_, _) => (true,  true),
+                SymmetricVariable(_, _) => (true,  false),
+                AsymmetricConstant(_)   => (false, true),
+                AsymmetricVariable(_)   => (false, false),
             }
         };
 
@@ -644,22 +644,22 @@ impl SamplingSolver for CollapsedGibbsSampler {
         let num_topics: usize = alpha_init.len();
         let vocab_size: usize = beta_init.len();
         let mut rng = rand::thread_rng();
-        let (mut alpha, symmetric_alpha, constant_alpha): (Array1<f64>, bool, bool) = {
+        let alpha: Array1<f64> = {
             use DirichletPrior::*;
             match alpha_init {
-                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+                SymmetricConstant(size, param) => Array1::from_vec(vec![param; size]),
+                SymmetricVariable(size, param) => Array1::from_vec(vec![param; size]),
+                AsymmetricConstant(ref params) => Array1::from_vec(params.clone()),
+                AsymmetricVariable(ref params) => Array1::from_vec(params.clone()),
             }
         };
-        let (mut beta, symmetric_beta, constant_beta): (Array1<f64>, bool, bool) = {
+        let beta: Array1<f64> = {
             use DirichletPrior::*;
             match beta_init {
-                SymmetricConstant(size, param) => (Array1::from_vec(vec![param; size]), true,  true),
-                SymmetricVariable(size, param) => (Array1::from_vec(vec![param; size]), true,  false),
-                AsymmetricConstant(ref params) => (Array1::from_vec(params.clone()),    false, true),
-                AsymmetricVariable(ref params) => (Array1::from_vec(params.clone()),    false, false),
+                SymmetricConstant(size, param) => Array1::from_vec(vec![param; size]),
+                SymmetricVariable(size, param) => Array1::from_vec(vec![param; size]),
+                AsymmetricConstant(ref params) => Array1::from_vec(params.clone()),
+                AsymmetricVariable(ref params) => Array1::from_vec(params.clone()),
             }
         };
 
@@ -740,19 +740,19 @@ impl SamplingSolver for CollapsedGibbsSampler {
         let (symmetric_alpha, constant_alpha) = {
             use DirichletPrior::*;
             match self.alpha_init {
-                SymmetricConstant(size, param) => (true,  true),
-                SymmetricVariable(size, param) => (true,  false),
-                AsymmetricConstant(ref params) => (false, true),
-                AsymmetricVariable(ref params) => (false, false),
+                SymmetricConstant(_, _) => (true,  true),
+                SymmetricVariable(_, _) => (true,  false),
+                AsymmetricConstant(_)   => (false, true),
+                AsymmetricVariable(_)   => (false, false),
             }
         };
         let (symmetric_beta, constant_beta) = {
             use DirichletPrior::*;
             match self.beta_init {
-                SymmetricConstant(size, param) => (true,  true),
-                SymmetricVariable(size, param) => (true,  false),
-                AsymmetricConstant(ref params) => (false, true),
-                AsymmetricVariable(ref params) => (false, false),
+                SymmetricConstant(_, _) => (true,  true),
+                SymmetricVariable(_, _) => (true,  false),
+                AsymmetricConstant(_)   => (false, true),
+                AsymmetricVariable(_)   => (false, false),
             }
         };
 
@@ -1172,7 +1172,6 @@ fn main() {
         let (dataset, vocab_size, inv_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
-        let beta: Vec<f64> = vec![0.1; vocab_size];
 
         let alpha_init = {
             if matches.is_present("symmetric-alpha") {
@@ -1220,7 +1219,7 @@ fn main() {
                 print_topics_by(&model, |id| inv_id_map[id]);
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
@@ -1233,7 +1232,7 @@ fn main() {
                 print_topics_by(&model, |id| inv_id_map[id]);
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
@@ -1251,9 +1250,6 @@ fn main() {
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         writeln!(&mut std::io::stderr(), "Vocab: {}", vocab_size).unwrap();
 
-        let alpha: Vec<f64> = vec![1.0; num_topics];
-        let beta: Vec<f64> = vec![1.0; vocab_size];
-
         let alpha_init = {
             if matches.is_present("symmetric-alpha") {
                 if matches.is_present("fix-alpha") {
@@ -1302,7 +1298,7 @@ fn main() {
                 println!("beta = {:?}", model.beta);
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
@@ -1317,7 +1313,7 @@ fn main() {
                 println!("beta = {:?}", model.beta);
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
@@ -1336,8 +1332,6 @@ fn main() {
         let (dataset, vocab_size, inv_id_map) = compact_words(dataset);
         writeln!(&mut std::io::stderr(), " done.").unwrap();
         let num_topics = value_t_or_exit!(matches, "topics", usize);
-        let alpha: Vec<f64> = vec![0.1; num_topics];
-        let beta: Vec<f64> = vec![0.1; vocab_size];
 
         let alpha_init = {
             if matches.is_present("symmetric-alpha") {
@@ -1393,7 +1387,7 @@ fn main() {
                 }
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
@@ -1414,7 +1408,7 @@ fn main() {
                 }
 
                 if let Some(fp) = matches.value_of("model") {
-                    let mut file = File::create(&fp).unwrap();
+                    let file = File::create(&fp).unwrap();
                     let mut file = BufWriter::new(file);
                     serde_json::to_writer_pretty(&mut file, &model).unwrap();
                 }
