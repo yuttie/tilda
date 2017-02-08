@@ -18,9 +18,10 @@ use std::io::{self, BufReader, BufRead, BufWriter, Write};
 use std::f64;
 use std::fmt;
 use std::str::FromStr;
+use std::ops::Add;
 
 use clap::{Arg, App, AppSettings};
-use ndarray::{Array1, Array2, Array3, Axis};
+use ndarray::{aview0, aview1, Array, Array1, Array2, Dimension, LinalgScalar};
 use rand::{Closed01, Rng};
 use rand::distributions::{IndependentSample, Sample, Gamma, LogNormal, RandSample, Range};
 use serde::{Serialize, Deserialize};
@@ -140,6 +141,39 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
             *x /= sum;
         }
         xs
+    }
+}
+
+fn array_sum<A, D>(data: &[Array<A, D>]) -> Array<A, D>
+    where A: Clone + Add<Output = A>, D: Dimension
+{
+    let n = data.len();
+    if n > 0 {
+        let mut sum = data[0].to_owned();
+        for i in 1..n {
+            sum = sum + &data[i];
+        }
+        sum
+    }
+    else {
+        panic!("No elements to sum");
+    }
+}
+
+fn array_mean<A, D>(data: &[Array<A, D>]) -> Array<A, D>
+    where A: LinalgScalar, D: Dimension
+{
+    let n = data.len();
+    if n > 0 {
+        let sum = array_sum(data);
+        let mut count = A::one();
+        for _ in 1..n {
+            count = count + A::one();
+        }
+        sum / &aview0(&count)
+    }
+    else {
+        panic!("No elements to sum");
     }
 }
 
@@ -336,16 +370,15 @@ struct GibbsSampler {
     nd:    Array1<usize>,
     nk:    Array1<usize>,
     // Samples
-    z_samples: Vec<Vec<Vec<usize>>>,
-    theta_samples: Array3<f64>,
-    phi_samples:   Array3<f64>,
-    alpha_samples: Array2<f64>,
-    beta_samples:  Array2<f64>,
-    ndk_samples:   Array3<usize>,
-    nkv_samples:   Array3<usize>,
-    nd_samples:    Array2<usize>,
-    nk_samples:    Array2<usize>,
-    log_likelihood_samples: Array1<f64>,
+    theta_samples:          Vec<Array2<f64>>,
+    phi_samples:            Vec<Array2<f64>>,
+    alpha_samples:          Vec<Array1<f64>>,
+    beta_samples:           Vec<Array1<f64>>,
+    ndk_samples:            Vec<Array2<usize>>,
+    nkv_samples:            Vec<Array2<usize>>,
+    nd_samples:             Vec<Array1<usize>>,
+    nk_samples:             Vec<Array1<usize>>,
+    log_likelihood_samples: Vec<f64>,
 }
 
 impl SamplingSolver for GibbsSampler {
@@ -383,17 +416,15 @@ impl SamplingSolver for GibbsSampler {
         let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
         let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
         // The same for samples
-        let num_samples = 0;  // FIXME
-        let z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-        let theta_samples: Array3<f64>      = Array3::zeros((num_samples, num_docs, num_topics));
-        let phi_samples:   Array3<f64>      = Array3::zeros((num_samples, num_topics, vocab_size));
-        let alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
-        let beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
-        let ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
-        let nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
-        let nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
-        let nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
-        let log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
+        let theta_samples:          Vec<Array2<f64>>   = Vec::new();
+        let phi_samples:            Vec<Array2<f64>>   = Vec::new();
+        let alpha_samples:          Vec<Array1<f64>>   = Vec::new();
+        let beta_samples:           Vec<Array1<f64>>   = Vec::new();
+        let ndk_samples:            Vec<Array2<usize>> = Vec::new();
+        let nkv_samples:            Vec<Array2<usize>> = Vec::new();
+        let nd_samples:             Vec<Array1<usize>> = Vec::new();
+        let nk_samples:             Vec<Array1<usize>> = Vec::new();
+        let log_likelihood_samples: Vec<f64>           = Vec::new();
 
         for bag in dataset {
             // n_d
@@ -403,7 +434,6 @@ impl SamplingSolver for GibbsSampler {
             }
             w.push(vec![0; n_d]);
             z.push(vec![0; n_d]);
-            // z_samples.push(vec![vec![0; num_topics]; n_d]);
         }
 
         // Initialize w, z, ndk and nkv
@@ -450,7 +480,6 @@ impl SamplingSolver for GibbsSampler {
             nkv:    nkv,
             nd:     nd,
             nk:     nk,
-            z_samples:  z_samples,
             theta_samples: theta_samples,
             phi_samples:   phi_samples,
             alpha_samples: alpha_samples,
@@ -529,22 +558,14 @@ impl SamplingSolver for GibbsSampler {
         if let Some(i_sample) = sample_index {
             // Store samples
             {
-                let mut phi_s   = self.phi_samples.subview_mut(Axis(0), i_sample);
-                let mut theta_s = self.theta_samples.subview_mut(Axis(0), i_sample);
-                let mut alpha_s = self.alpha_samples.subview_mut(Axis(0), i_sample);
-                let mut beta_s  = self.beta_samples.subview_mut(Axis(0), i_sample);
-                let mut ndk_s   = self.ndk_samples.subview_mut(Axis(0), i_sample);
-                let mut nkv_s   = self.nkv_samples.subview_mut(Axis(0), i_sample);
-                let mut nd_s    = self.nd_samples.subview_mut(Axis(0), i_sample);
-                let mut nk_s    = self.nk_samples.subview_mut(Axis(0), i_sample);
-                phi_s.assign(&self.phi);
-                theta_s.assign(&self.theta);
-                alpha_s.assign(&self.alpha);
-                beta_s.assign(&self.beta);
-                ndk_s.assign(&self.ndk);
-                nkv_s.assign(&self.nkv);
-                nd_s.assign(&self.nd);
-                nk_s.assign(&self.nk);
+                self.phi_samples.push(self.phi.clone());
+                self.theta_samples.push(self.theta.clone());
+                self.alpha_samples.push(self.alpha.clone());
+                self.beta_samples.push(self.beta.clone());
+                self.ndk_samples.push(self.ndk.clone());
+                self.nkv_samples.push(self.nkv.clone());
+                self.nd_samples.push(self.nd.clone());
+                self.nk_samples.push(self.nk.clone());
             }
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
@@ -554,11 +575,12 @@ impl SamplingSolver for GibbsSampler {
                 log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
             }
-            self.log_likelihood_samples[i_sample] = log_likelihood;
+            self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                let ndk = self.ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = self.nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                // FIXME Arrays' elements must be converted to f64 before array_mean()
+                let ndk = array_mean(&self.ndk_samples);
+                let nd = array_mean(&self.nd_samples);
                 for k in 0..num_topics {
                     let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
                     let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -576,8 +598,9 @@ impl SamplingSolver for GibbsSampler {
                 }
             }
             if !constant_beta {
-                let nkv = self.nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = self.nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                // FIXME Arrays' elements must be converted to f64 before array_mean()
+                let nkv = array_mean(&self.nkv_samples);
+                let nk = array_mean(&self.nk_samples);
                 for v in 0..vocab_size {
                     let mut x = -(num_topics as f64) * digamma(self.beta[v]);
                     let mut y = -(num_topics as f64) * digamma(beta_sum);
@@ -617,7 +640,7 @@ impl LDAModel for GibbsSampler {
 
     /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
     fn marginal_likelihood(&self) -> f64 {
-        let samples = &self.log_likelihood_samples;
+        let samples = aview1(&self.log_likelihood_samples);
         samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
     }
 }
@@ -635,14 +658,13 @@ struct CollapsedGibbsSampler {
     nd:    Array1<usize>,
     nk:    Array1<usize>,
     // Samples
-    z_samples: Vec<Vec<Vec<usize>>>,
-    alpha_samples: Array2<f64>,
-    beta_samples:  Array2<f64>,
-    ndk_samples:   Array3<usize>,
-    nkv_samples:   Array3<usize>,
-    nd_samples:    Array2<usize>,
-    nk_samples:    Array2<usize>,
-    log_likelihood_samples: Array1<f64>,
+    alpha_samples:          Vec<Array1<f64>>,
+    beta_samples:           Vec<Array1<f64>>,
+    ndk_samples:            Vec<Array2<usize>>,
+    nkv_samples:            Vec<Array2<usize>>,
+    nd_samples:             Vec<Array1<usize>>,
+    nk_samples:             Vec<Array1<usize>>,
+    log_likelihood_samples: Vec<f64>,
 }
 
 impl SamplingSolver for CollapsedGibbsSampler {
@@ -679,14 +701,13 @@ impl SamplingSolver for CollapsedGibbsSampler {
         let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
         // The same for samples
         let num_samples = 0;
-        let z_samples: Vec<Vec<Vec<usize>>> = Vec::with_capacity(num_docs);
-        let alpha_samples: Array2<f64>      = Array2::zeros((num_samples, num_topics));
-        let beta_samples:  Array2<f64>      = Array2::zeros((num_samples, vocab_size));
-        let ndk_samples:   Array3<usize>    = Array3::zeros((num_samples, num_docs, num_topics));
-        let nkv_samples:   Array3<usize>    = Array3::zeros((num_samples, num_topics, vocab_size));
-        let nd_samples:    Array2<usize>    = Array2::zeros((num_samples, num_docs));
-        let nk_samples:    Array2<usize>    = Array2::zeros((num_samples, num_topics));
-        let log_likelihood_samples: Array1<f64> = Array1::zeros(num_samples);
+        let alpha_samples:          Vec<Array1<f64>>   = Vec::new();
+        let beta_samples:           Vec<Array1<f64>>   = Vec::new();
+        let ndk_samples:            Vec<Array2<usize>> = Vec::new();
+        let nkv_samples:            Vec<Array2<usize>> = Vec::new();
+        let nd_samples:             Vec<Array1<usize>> = Vec::new();
+        let nk_samples:             Vec<Array1<usize>> = Vec::new();
+        let log_likelihood_samples: Vec<f64>           = Vec::new();
 
         for bag in dataset {
             // n_d
@@ -696,7 +717,6 @@ impl SamplingSolver for CollapsedGibbsSampler {
             }
             w.push(vec![0; n_d]);
             z.push(vec![0; n_d]);
-            // z_samples.push(vec![vec![0; num_topics]; n_d]);
         }
 
         // Initialize w, z, ndk and nkv
@@ -728,7 +748,6 @@ impl SamplingSolver for CollapsedGibbsSampler {
             nkv:    nkv,
             nd:     nd,
             nk:     nk,
-            z_samples:  z_samples,
             alpha_samples: alpha_samples,
             beta_samples:  beta_samples,
             ndk_samples:   ndk_samples,
@@ -794,18 +813,12 @@ impl SamplingSolver for CollapsedGibbsSampler {
         if let Some(i_sample) = sample_index {
             // Store samples
             {
-                let mut alpha_s = self.alpha_samples.subview_mut(Axis(0), i_sample);
-                let mut beta_s  = self.beta_samples.subview_mut(Axis(0), i_sample);
-                let mut ndk_s   = self.ndk_samples.subview_mut(Axis(0), i_sample);
-                let mut nkv_s   = self.nkv_samples.subview_mut(Axis(0), i_sample);
-                let mut nd_s    = self.nd_samples.subview_mut(Axis(0), i_sample);
-                let mut nk_s    = self.nk_samples.subview_mut(Axis(0), i_sample);
-                alpha_s.assign(&self.alpha);
-                beta_s.assign(&self.beta);
-                ndk_s.assign(&self.ndk);
-                nkv_s.assign(&self.nkv);
-                nd_s.assign(&self.nd);
-                nk_s.assign(&self.nk);
+                self.alpha_samples.push(self.alpha.clone());
+                self.beta_samples.push(self.beta.clone());
+                self.ndk_samples.push(self.ndk.clone());
+                self.nkv_samples.push(self.nkv.clone());
+                self.nd_samples.push(self.nd.clone());
+                self.nk_samples.push(self.nk.clone());
             }
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
@@ -815,11 +828,12 @@ impl SamplingSolver for CollapsedGibbsSampler {
                 log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
                     - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
             }
-            self.log_likelihood_samples[i_sample] = log_likelihood;
+            self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                let ndk = self.ndk_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nd = self.nd_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                // FIXME Arrays' elements must be converted to f64 before array_mean()
+                let ndk = array_mean(&self.ndk_samples);
+                let nd = array_mean(&self.nd_samples);
                 for k in 0..num_topics {
                     let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
                     let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -837,8 +851,9 @@ impl SamplingSolver for CollapsedGibbsSampler {
                 }
             }
             if !constant_beta {
-                let nkv = self.nkv_samples.slice(s![0..(i_sample + 1) as isize, .., ..]).map(|&x| x as f64).mean(Axis(0));
-                let nk = self.nk_samples.slice(s![0..(i_sample + 1) as isize, ..]).map(|&x| x as f64).mean(Axis(0));
+                // FIXME Arrays' elements must be converted to f64 before array_mean()
+                let nkv = array_mean(&self.nkv_samples);
+                let nk = array_mean(&self.nk_samples);
                 for v in 0..vocab_size {
                     let mut x = -(num_topics as f64) * digamma(self.beta[v]);
                     let mut y = -(num_topics as f64) * digamma(beta_sum);
@@ -898,7 +913,7 @@ impl LDAModel for CollapsedGibbsSampler {
 
     /// Approximate a marginal likelihood by a harmonic mean of likelihood samples
     fn marginal_likelihood(&self) -> f64 {
-        let samples = &self.log_likelihood_samples;
+        let samples = aview1(&self.log_likelihood_samples);
         samples.len() as f64 / samples.map(|x| 1.0 / x).scalar_sum()
     }
 }
