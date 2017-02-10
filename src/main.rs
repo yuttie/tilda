@@ -144,37 +144,24 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
-fn array_sum<A, D>(data: &[Array<A, D>]) -> Array<A, D>
-    where A: Clone + Add<Output = A>, D: Dimension
+fn array_mean<'a, I, A, D: 'a>(source: I) -> Array<A, D>
+    where I: IntoIterator<Item=&'a Array<A, D>>, A: LinalgScalar, D: Dimension
 {
-    let n = data.len();
-    if n > 0 {
-        let mut sum = data[0].to_owned();
-        for i in 1..n {
-            sum = sum + &data[i];
-        }
-        sum
+    let mut iter = source.into_iter();
+    let mut sum = match iter.next() {
+        Some(a) => {
+            a.to_owned()
+        },
+        None => {
+            panic!("No elements to sum")
+        },
+    };
+    let mut count = A::one();
+    for a in iter {
+        sum = sum + a;
+        count = count + A::one();
     }
-    else {
-        panic!("No elements to sum");
-    }
-}
-
-fn array_mean<A, D>(data: &[Array<A, D>]) -> Array<A, D>
-    where A: LinalgScalar, D: Dimension
-{
-    let n = data.len();
-    if n > 0 {
-        let sum = array_sum(data);
-        let mut count = A::one();
-        for _ in 1..n {
-            count = count + A::one();
-        }
-        sum / &aview0(&count)
-    }
-    else {
-        panic!("No elements to sum");
-    }
+    sum / &aview0(&count)
 }
 
 mod cmath {
