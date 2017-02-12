@@ -143,26 +143,6 @@ impl IndependentSample<Vec<f64>> for Dirichlet {
     }
 }
 
-fn array_mean<'a, I, A, D: 'a>(source: I) -> Array<A, D>
-    where I: IntoIterator<Item=&'a Array<A, D>>, A: LinalgScalar, D: Dimension
-{
-    let mut iter = source.into_iter();
-    let mut sum = match iter.next() {
-        Some(a) => {
-            a.to_owned()
-        },
-        None => {
-            panic!("No elements to sum")
-        },
-    };
-    let mut count = A::one();
-    for a in iter {
-        sum = sum + a;
-        count = count + A::one();
-    }
-    sum / &aview0(&count)
-}
-
 trait Samples<T> {
     type Mean;
     fn mean(self) -> Self::Mean;
@@ -617,9 +597,8 @@ impl SamplingSolver for GibbsSampler {
             self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                // FIXME Arrays' elements must be converted to f64 before array_mean()
-                let ndk = array_mean(&self.ndk_samples);
-                let nd = array_mean(&self.nd_samples);
+                let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+                let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
                 for k in 0..num_topics {
                     let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
                     let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -637,9 +616,8 @@ impl SamplingSolver for GibbsSampler {
                 }
             }
             if !constant_beta {
-                // FIXME Arrays' elements must be converted to f64 before array_mean()
-                let nkv = array_mean(&self.nkv_samples);
-                let nk = array_mean(&self.nk_samples);
+                let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+                let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
                 for v in 0..vocab_size {
                     let mut x = -(num_topics as f64) * digamma(self.beta[v]);
                     let mut y = -(num_topics as f64) * digamma(beta_sum);
@@ -870,9 +848,8 @@ impl SamplingSolver for CollapsedGibbsSampler {
             self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                // FIXME Arrays' elements must be converted to f64 before array_mean()
-                let ndk = array_mean(&self.ndk_samples);
-                let nd = array_mean(&self.nd_samples);
+                let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+                let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
                 for k in 0..num_topics {
                     let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
                     let mut y = -(num_docs as f64) * digamma(alpha_sum);
@@ -890,9 +867,8 @@ impl SamplingSolver for CollapsedGibbsSampler {
                 }
             }
             if !constant_beta {
-                // FIXME Arrays' elements must be converted to f64 before array_mean()
-                let nkv = array_mean(&self.nkv_samples);
-                let nk = array_mean(&self.nk_samples);
+                let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+                let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
                 for v in 0..vocab_size {
                     let mut x = -(num_topics as f64) * digamma(self.beta[v]);
                     let mut y = -(num_topics as f64) * digamma(beta_sum);
