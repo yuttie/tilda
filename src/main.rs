@@ -575,14 +575,7 @@ impl SamplingSolver for GibbsSampler {
             // Store samples
             self.save_current_sample();
             // Evaluate the log-likelihood value for the current parameters
-            let mut log_likelihood = 0.0;
-            log_likelihood += num_topics as f64 *
-                (cmath::lngamma(self.beta.scalar_sum()) - self.beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-            for k in 0..num_topics {
-                log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                    - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
-            }
-            self.log_likelihood_samples.push(log_likelihood);
+            self.evaluate_loglikelihood();
             // Update alpha and beta
             if !constant_alpha {
                 self.update_alpha(symmetric_alpha);
@@ -655,6 +648,21 @@ impl GibbsSampler {
                 *b = b_sym;
             }
         }
+    }
+
+    fn evaluate_loglikelihood(&mut self) -> f64 {
+        let num_topics: usize = self.alpha_init.len();
+
+        let mut log_likelihood = 0.0;
+        log_likelihood += num_topics as f64 *
+            (cmath::lngamma(self.beta.scalar_sum()) - self.beta.map(|&b| cmath::lngamma(b)).scalar_sum());
+        for k in 0..num_topics {
+            log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
+        }
+        self.log_likelihood_samples.push(log_likelihood);
+
+        log_likelihood
     }
 }
 
@@ -848,14 +856,7 @@ impl SamplingSolver for CollapsedGibbsSampler {
             // Store samples
             self.save_current_sample();
             // Evaluate the log-likelihood value for the current parameters
-            let mut log_likelihood = 0.0;
-            log_likelihood += num_topics as f64 *
-                (cmath::lngamma(self.beta.scalar_sum()) - self.beta.map(|&b| cmath::lngamma(b)).scalar_sum());
-            for k in 0..num_topics {
-                log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
-                    - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
-            }
-            self.log_likelihood_samples.push(log_likelihood);
+            self.evaluate_loglikelihood();
             // Update alpha and beta
             if !constant_alpha {
                 self.update_alpha(symmetric_alpha);
@@ -926,6 +927,21 @@ impl CollapsedGibbsSampler {
                 *b = b_sym;
             }
         }
+    }
+
+    fn evaluate_loglikelihood(&mut self) -> f64 {
+        let num_topics: usize = self.alpha_init.len();
+
+        let mut log_likelihood = 0.0;
+        log_likelihood += num_topics as f64 *
+            (cmath::lngamma(self.beta.scalar_sum()) - self.beta.map(|&b| cmath::lngamma(b)).scalar_sum());
+        for k in 0..num_topics {
+            log_likelihood += (self.nkv.row(k).map(|&x| x as f64) + &self.beta).map(|&x| cmath::lngamma(x)).scalar_sum()
+                - cmath::lngamma(self.nk[k] as f64 + self.beta.scalar_sum());
+        }
+        self.log_likelihood_samples.push(log_likelihood);
+
+        log_likelihood
     }
 }
 
