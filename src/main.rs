@@ -576,16 +576,7 @@ impl SamplingSolver for GibbsSampler {
         }
         if let Some(i_sample) = sample_index {
             // Store samples
-            {
-                self.phi_samples.push(self.phi.clone());
-                self.theta_samples.push(self.theta.clone());
-                self.alpha_samples.push(self.alpha.clone());
-                self.beta_samples.push(self.beta.clone());
-                self.ndk_samples.push(self.ndk.clone());
-                self.nkv_samples.push(self.nkv.clone());
-                self.nd_samples.push(self.nd.clone());
-                self.nk_samples.push(self.nk.clone());
-            }
+            self.save_current_sample();
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
@@ -635,6 +626,20 @@ impl SamplingSolver for GibbsSampler {
                 }
             }
         }
+    }
+}
+
+impl GibbsSampler {
+    fn save_current_sample(&mut self) {
+        // Store samples
+        self.phi_samples.push(self.phi.clone());
+        self.theta_samples.push(self.theta.clone());
+        self.alpha_samples.push(self.alpha.clone());
+        self.beta_samples.push(self.beta.clone());
+        self.ndk_samples.push(self.ndk.clone());
+        self.nkv_samples.push(self.nkv.clone());
+        self.nd_samples.push(self.nd.clone());
+        self.nk_samples.push(self.nk.clone());
     }
 }
 
@@ -828,14 +833,7 @@ impl SamplingSolver for CollapsedGibbsSampler {
         }
         if let Some(i_sample) = sample_index {
             // Store samples
-            {
-                self.alpha_samples.push(self.alpha.clone());
-                self.beta_samples.push(self.beta.clone());
-                self.ndk_samples.push(self.ndk.clone());
-                self.nkv_samples.push(self.nkv.clone());
-                self.nd_samples.push(self.nd.clone());
-                self.nk_samples.push(self.nk.clone());
-            }
+            self.save_current_sample();
             // Evaluate the log-likelihood value for the current parameters
             let mut log_likelihood = 0.0;
             log_likelihood += num_topics as f64 *
@@ -885,6 +883,18 @@ impl SamplingSolver for CollapsedGibbsSampler {
                 }
             }
         }
+    }
+}
+
+impl CollapsedGibbsSampler {
+    fn save_current_sample(&mut self) {
+        // Store samples
+        self.alpha_samples.push(self.alpha.clone());
+        self.beta_samples.push(self.beta.clone());
+        self.ndk_samples.push(self.ndk.clone());
+        self.nkv_samples.push(self.nkv.clone());
+        self.nd_samples.push(self.nd.clone());
+        self.nk_samples.push(self.nk.clone());
     }
 }
 
