@@ -1144,7 +1144,7 @@ impl fmt::Display for ParseMethodError {
 
 fn main() {
     let matches = App::new("TiLDA")
-        .version("0.2")
+        .version("0.3.0")
         .author("Yuta Taniguchi <yuta.taniguchi.y.t@gmail.com>")
         .about("Latent Dirichlet allocation implemented in Rust")
         .arg(Arg::with_name("topics")
