@@ -18,7 +18,6 @@ use std::io::{self, BufReader, BufRead, BufWriter, Write};
 use std::f64;
 use std::fmt;
 use std::str::FromStr;
-use std::ops::Add;
 
 use clap::{Arg, App, AppSettings};
 use ndarray::{aview0, aview1, Array, Array1, Array2, Dimension, LinalgScalar};
@@ -162,6 +161,59 @@ fn array_mean<'a, I, A, D: 'a>(source: I) -> Array<A, D>
         count = count + A::one();
     }
     sum / &aview0(&count)
+}
+
+trait Samples<T> {
+    type Mean;
+    fn mean(self) -> Self::Mean;
+}
+
+impl<I, A, D> Samples<Array<A, D>> for I
+    where I: IntoIterator<Item=Array<A, D>>, A: LinalgScalar, D: Dimension
+{
+    type Mean = Array<A, D>;
+
+    fn mean(self) -> Self::Mean {
+        let mut iter = self.into_iter();
+        let mut sum = match iter.next() {
+            Some(a) => {
+                a
+            },
+            None => {
+                panic!("No elements to sum")
+            },
+        };
+        let mut count = A::one();
+        for a in iter {
+            sum = sum + a;
+            count = count + A::one();
+        }
+        sum / &aview0(&count)
+    }
+}
+
+impl<'a, I, A, D: 'a> Samples<&'a Array<A, D>> for I
+    where I: IntoIterator<Item=&'a Array<A, D>>, A: LinalgScalar, D: Dimension
+{
+    type Mean = Array<A, D>;
+
+    fn mean(self) -> Self::Mean {
+        let mut iter = self.into_iter();
+        let mut sum = match iter.next() {
+            Some(a) => {
+                a.to_owned()
+            },
+            None => {
+                panic!("No elements to sum")
+            },
+        };
+        let mut count = A::one();
+        for a in iter {
+            sum = sum + a;
+            count = count + A::one();
+        }
+        sum / &aview0(&count)
+    }
 }
 
 mod cmath {
