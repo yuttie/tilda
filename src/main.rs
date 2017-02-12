@@ -512,7 +512,6 @@ impl SamplingSolver for GibbsSampler {
     }
 
     fn sample(&mut self, sample_index: Option<usize>) {
-        let num_docs: usize = self.w.len();
         let num_topics: usize = self.alpha_init.len();
         let vocab_size: usize = self.beta_init.len();
         let mut rng = rand::thread_rng();
@@ -535,8 +534,6 @@ impl SamplingSolver for GibbsSampler {
             }
         };
 
-        let alpha_sum: f64 = self.alpha.scalar_sum();
-        let beta_sum: f64 = self.beta.scalar_sum();
         for (d, w_d) in self.w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
                 let v = w_di;
@@ -588,42 +585,10 @@ impl SamplingSolver for GibbsSampler {
             self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + self.alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    self.alpha[k] = self.alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = self.alpha.scalar_sum() / self.alpha.len() as f64;
-                    for a in &mut self.alpha {
-                        *a = a_sym;
-                    }
-                }
+                self.update_alpha(symmetric_alpha);
             }
             if !constant_beta {
-                let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(self.beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + self.beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    self.beta[v] = self.beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = self.beta.scalar_sum() / self.beta.len() as f64;
-                    for b in &mut self.beta {
-                        *b = b_sym;
-                    }
-                }
+                self.update_beta(symmetric_beta);
             }
         }
     }
@@ -640,6 +605,56 @@ impl GibbsSampler {
         self.nkv_samples.push(self.nkv.clone());
         self.nd_samples.push(self.nd.clone());
         self.nk_samples.push(self.nk.clone());
+    }
+
+    fn update_alpha(&mut self, symmetric_alpha: bool) {
+        let num_docs: usize = self.w.len();
+        let num_topics: usize = self.alpha_init.len();
+
+        let alpha_sum: f64 = self.alpha.scalar_sum();
+
+        let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        for k in 0..num_topics {
+            let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
+            let mut y = -(num_docs as f64) * digamma(alpha_sum);
+            for d in 0..num_docs {
+                x += digamma(ndk[[d, k]] as f64 + self.alpha[k]);
+                y += digamma(nd[d] as f64 + alpha_sum);
+            }
+            self.alpha[k] = self.alpha[k] * x / y;
+        }
+        if symmetric_alpha {
+            let a_sym = self.alpha.scalar_sum() / self.alpha.len() as f64;
+            for a in &mut self.alpha {
+                *a = a_sym;
+            }
+        }
+    }
+
+    fn update_beta(&mut self, symmetric_beta: bool) {
+        let num_topics: usize = self.alpha_init.len();
+        let vocab_size: usize = self.beta_init.len();
+
+        let beta_sum: f64 = self.beta.scalar_sum();
+
+        let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        for v in 0..vocab_size {
+            let mut x = -(num_topics as f64) * digamma(self.beta[v]);
+            let mut y = -(num_topics as f64) * digamma(beta_sum);
+            for k in 0..num_topics {
+                x += digamma(nkv[[k, v]] as f64 + self.beta[v]);
+                y += digamma(nk[k] as f64 + beta_sum);
+            }
+            self.beta[v] = self.beta[v] * x / y;
+        }
+        if symmetric_beta {
+            let b_sym = self.beta.scalar_sum() / self.beta.len() as f64;
+            for b in &mut self.beta {
+                *b = b_sym;
+            }
+        }
     }
 }
 
@@ -780,9 +795,7 @@ impl SamplingSolver for CollapsedGibbsSampler {
     }
 
     fn sample(&mut self, sample_index: Option<usize>) {
-        let num_docs: usize = self.w.len();
         let num_topics: usize = self.alpha_init.len();
-        let vocab_size: usize = self.beta_init.len();
         let mut rng = rand::thread_rng();
         let (symmetric_alpha, constant_alpha) = {
             use DirichletPrior::*;
@@ -845,42 +858,10 @@ impl SamplingSolver for CollapsedGibbsSampler {
             self.log_likelihood_samples.push(log_likelihood);
             // Update alpha and beta
             if !constant_alpha {
-                let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                for k in 0..num_topics {
-                    let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
-                    let mut y = -(num_docs as f64) * digamma(alpha_sum);
-                    for d in 0..num_docs {
-                        x += digamma(ndk[[d, k]] as f64 + self.alpha[k]);
-                        y += digamma(nd[d] as f64 + alpha_sum);
-                    }
-                    self.alpha[k] = self.alpha[k] * x / y;
-                }
-                if symmetric_alpha {
-                    let a_sym = self.alpha.scalar_sum() / self.alpha.len() as f64;
-                    for a in &mut self.alpha {
-                        *a = a_sym;
-                    }
-                }
+                self.update_alpha(symmetric_alpha);
             }
             if !constant_beta {
-                let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
-                for v in 0..vocab_size {
-                    let mut x = -(num_topics as f64) * digamma(self.beta[v]);
-                    let mut y = -(num_topics as f64) * digamma(beta_sum);
-                    for k in 0..num_topics {
-                        x += digamma(nkv[[k, v]] as f64 + self.beta[v]);
-                        y += digamma(nk[k] as f64 + beta_sum);
-                    }
-                    self.beta[v] = self.beta[v] * x / y;
-                }
-                if symmetric_beta {
-                    let b_sym = self.beta.scalar_sum() / self.beta.len() as f64;
-                    for b in &mut self.beta {
-                        *b = b_sym;
-                    }
-                }
+                self.update_beta(symmetric_beta);
             }
         }
     }
@@ -895,6 +876,56 @@ impl CollapsedGibbsSampler {
         self.nkv_samples.push(self.nkv.clone());
         self.nd_samples.push(self.nd.clone());
         self.nk_samples.push(self.nk.clone());
+    }
+
+    fn update_alpha(&mut self, symmetric_alpha: bool) {
+        let num_docs: usize = self.w.len();
+        let num_topics: usize = self.alpha_init.len();
+
+        let alpha_sum: f64 = self.alpha.scalar_sum();
+
+        let ndk = self.ndk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        let nd = self.nd_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        for k in 0..num_topics {
+            let mut x = -(num_docs as f64) * digamma(self.alpha[k]);
+            let mut y = -(num_docs as f64) * digamma(alpha_sum);
+            for d in 0..num_docs {
+                x += digamma(ndk[[d, k]] as f64 + self.alpha[k]);
+                y += digamma(nd[d] as f64 + alpha_sum);
+            }
+            self.alpha[k] = self.alpha[k] * x / y;
+        }
+        if symmetric_alpha {
+            let a_sym = self.alpha.scalar_sum() / self.alpha.len() as f64;
+            for a in &mut self.alpha {
+                *a = a_sym;
+            }
+        }
+    }
+
+    fn update_beta(&mut self, symmetric_beta: bool) {
+        let num_topics: usize = self.alpha_init.len();
+        let vocab_size: usize = self.beta_init.len();
+
+        let beta_sum: f64 = self.beta.scalar_sum();
+
+        let nkv = self.nkv_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        let nk = self.nk_samples.iter().map(|a| a.map(|x| *x as f64)).mean();
+        for v in 0..vocab_size {
+            let mut x = -(num_topics as f64) * digamma(self.beta[v]);
+            let mut y = -(num_topics as f64) * digamma(beta_sum);
+            for k in 0..num_topics {
+                x += digamma(nkv[[k, v]] as f64 + self.beta[v]);
+                y += digamma(nk[k] as f64 + beta_sum);
+            }
+            self.beta[v] = self.beta[v] * x / y;
+        }
+        if symmetric_beta {
+            let b_sym = self.beta.scalar_sum() / self.beta.len() as f64;
+            for b in &mut self.beta {
+                *b = b_sym;
+            }
+        }
     }
 }
 
