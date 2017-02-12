@@ -371,7 +371,11 @@ impl DirichletPrior {
 
 trait SamplingSolver {
     fn new(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior) -> Self;
-    fn sample(&mut self, sample_index: Option<usize>);
+    fn sample(&mut self);
+    fn save_current_sample(&mut self);
+    fn update_alpha(&mut self, symmetric_alpha: bool);
+    fn update_beta(&mut self, symmetric_beta: bool);
+    fn evaluate_loglikelihood(&mut self) -> f64;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -511,28 +515,10 @@ impl SamplingSolver for GibbsSampler {
         }
     }
 
-    fn sample(&mut self, sample_index: Option<usize>) {
+    fn sample(&mut self) {
         let num_topics: usize = self.alpha_init.len();
         let vocab_size: usize = self.beta_init.len();
         let mut rng = rand::thread_rng();
-        let (symmetric_alpha, constant_alpha) = {
-            use DirichletPrior::*;
-            match self.alpha_init {
-                SymmetricConstant(_, _) => (true,  true),
-                SymmetricVariable(_, _) => (true,  false),
-                AsymmetricConstant(_)   => (false, true),
-                AsymmetricVariable(_)   => (false, false),
-            }
-        };
-        let (symmetric_beta, constant_beta) = {
-            use DirichletPrior::*;
-            match self.beta_init {
-                SymmetricConstant(_, _) => (true,  true),
-                SymmetricVariable(_, _) => (true,  false),
-                AsymmetricConstant(_)   => (false, true),
-                AsymmetricVariable(_)   => (false, false),
-            }
-        };
 
         for (d, w_d) in self.w.iter().enumerate() {
             for (i, &w_di) in w_d.iter().enumerate() {
@@ -571,23 +557,8 @@ impl SamplingSolver for GibbsSampler {
             let dir = Dirichlet::new(beta_k);
             self.phi.row_mut(k).assign(&Array1::from_vec(dir.ind_sample(&mut rng)));
         }
-        if let Some(i_sample) = sample_index {
-            // Store samples
-            self.save_current_sample();
-            // Evaluate the log-likelihood value for the current parameters
-            self.evaluate_loglikelihood();
-            // Update alpha and beta
-            if !constant_alpha {
-                self.update_alpha(symmetric_alpha);
-            }
-            if !constant_beta {
-                self.update_beta(symmetric_beta);
-            }
-        }
     }
-}
 
-impl GibbsSampler {
     fn save_current_sample(&mut self) {
         // Store samples
         self.phi_samples.push(self.phi.clone());
@@ -802,27 +773,9 @@ impl SamplingSolver for CollapsedGibbsSampler {
         }
     }
 
-    fn sample(&mut self, sample_index: Option<usize>) {
+    fn sample(&mut self) {
         let num_topics: usize = self.alpha_init.len();
         let mut rng = rand::thread_rng();
-        let (symmetric_alpha, constant_alpha) = {
-            use DirichletPrior::*;
-            match self.alpha_init {
-                SymmetricConstant(_, _) => (true,  true),
-                SymmetricVariable(_, _) => (true,  false),
-                AsymmetricConstant(_)   => (false, true),
-                AsymmetricVariable(_)   => (false, false),
-            }
-        };
-        let (symmetric_beta, constant_beta) = {
-            use DirichletPrior::*;
-            match self.beta_init {
-                SymmetricConstant(_, _) => (true,  true),
-                SymmetricVariable(_, _) => (true,  false),
-                AsymmetricConstant(_)   => (false, true),
-                AsymmetricVariable(_)   => (false, false),
-            }
-        };
 
         let alpha_sum: f64 = self.alpha.scalar_sum();
         let beta_sum: f64 = self.beta.scalar_sum();
@@ -852,23 +805,8 @@ impl SamplingSolver for CollapsedGibbsSampler {
                 self.nk[new_z_di] += 1;
             }
         }
-        if let Some(i_sample) = sample_index {
-            // Store samples
-            self.save_current_sample();
-            // Evaluate the log-likelihood value for the current parameters
-            self.evaluate_loglikelihood();
-            // Update alpha and beta
-            if !constant_alpha {
-                self.update_alpha(symmetric_alpha);
-            }
-            if !constant_beta {
-                self.update_beta(symmetric_beta);
-            }
-        }
     }
-}
 
-impl CollapsedGibbsSampler {
     fn save_current_sample(&mut self) {
         // Store samples
         self.alpha_samples.push(self.alpha.clone());
@@ -990,18 +928,44 @@ impl LDAModel for CollapsedGibbsSampler {
 }
 
 fn run_solver<S: SamplingSolver>(dataset: &[Bag], alpha_init: DirichletPrior, beta_init: DirichletPrior, burn_in: usize, num_samples: usize, lag: usize) -> S {
+    let (symmetric_alpha, constant_alpha) = {
+        use DirichletPrior::*;
+        match alpha_init {
+            SymmetricConstant(_, _) => (true,  true),
+            SymmetricVariable(_, _) => (true,  false),
+            AsymmetricConstant(_)   => (false, true),
+            AsymmetricVariable(_)   => (false, false),
+        }
+    };
+    let (symmetric_beta, constant_beta) = {
+        use DirichletPrior::*;
+        match beta_init {
+            SymmetricConstant(_, _) => (true,  true),
+            SymmetricVariable(_, _) => (true,  false),
+            AsymmetricConstant(_)   => (false, true),
+            AsymmetricVariable(_)   => (false, false),
+        }
+    };
+
     write!(&mut std::io::stderr(), "Initializing...").unwrap();
     let mut sampler = S::new(dataset, alpha_init, beta_init);
     writeln!(&mut std::io::stderr(), "\rInitialized.").unwrap();
 
     write!(&mut std::io::stderr(), "Sampling...").unwrap();
     for s in 0..(burn_in + num_samples * lag) {
+        sampler.sample();
         if s >= burn_in && (s - burn_in + 1) % lag == 0 {
-            let i_sample = (s - burn_in + 1) / lag - 1;
-            sampler.sample(Some(i_sample));
-        }
-        else {
-            sampler.sample(None);
+            // Store samples
+            sampler.save_current_sample();
+            // Evaluate the log-likelihood value for the current parameters
+            sampler.evaluate_loglikelihood();
+            // Update alpha and beta
+            if !constant_alpha {
+                sampler.update_alpha(symmetric_alpha);
+            }
+            if !constant_beta {
+                sampler.update_beta(symmetric_beta);
+            }
         }
         if s < burn_in {
             write!(&mut std::io::stderr(), "\rBurn-in... {}/{}", s + 1, burn_in).unwrap();
