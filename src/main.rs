@@ -717,7 +717,6 @@ impl SamplingSolver for CollapsedGibbsSampler {
         let mut nd:    Array1<usize>   = Array1::zeros(num_docs);
         let mut nk:    Array1<usize>   = Array1::zeros(num_topics);
         // The same for samples
-        let num_samples = 0;
         let alpha_samples:          Vec<Array1<f64>>   = Vec::new();
         let beta_samples:           Vec<Array1<f64>>   = Vec::new();
         let ndk_samples:            Vec<Array2<usize>> = Vec::new();
