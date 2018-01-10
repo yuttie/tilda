@@ -265,7 +265,7 @@ fn digamma(x: f64) -> f64 {
     }
 }
 
-trait LDAModel: Serialize + Deserialize {
+trait LDAModel: Serialize + for<'de> Deserialize<'de> {
     fn alpha(&self) -> Array1<f64>;
     fn beta(&self) -> Array1<f64>;
     fn phi(&self) -> Array2<f64>;
